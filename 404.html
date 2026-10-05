@@ -4,8 +4,8 @@
 <title>WildMilu · Página no encontrada</title>
 <script>
   // Link a una foto (/foto/benteveo/) que todavía no tiene su página: ir al visor de esa foto
-  var m = location.pathname.match(/^\/foto\/([^\/]+)\/?$/);
-  if (m) location.replace("/#foto=" + m[1]);
+  var m = location.pathname.match(/^(\/lab-t8wjo9y)?\/foto\/([^\/]+)\/?$/);
+  if (m) location.replace((m[1] || "") + "/#foto=" + m[2]);
 </script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:#f7f4ec;color:#26221d;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:2rem;box-sizing:border-box}

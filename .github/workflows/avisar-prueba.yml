@@ -1,0 +1,20 @@
+# WildMilu · Cuando cambia la rama "dev" (sitio de prueba), le pide a "main"
+# que vuelva a publicar: GitHub solo deja publicar desde main, y main arma
+# las dos versiones (real + prueba) juntas.
+name: Avisar cambio en el sitio de prueba
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  actions: write
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pedir nueva publicación
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publicar.yml --ref main --repo "$GITHUB_REPOSITORY"

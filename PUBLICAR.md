@@ -112,3 +112,23 @@ próximo cambio). Si algo falla, ahí mismo se ve el error en rojo.
    y agregalo en `index.html` (o pedíselo a Claude), publicá y tocá **Verificar**.
 3. En **Sitemaps** cargá `sitemap.xml` → Enviar.
 4. Google tarda de días a un par de semanas en mostrar el sitio en las búsquedas.
+
+---
+
+## 🧪 Sitio de prueba (antes de tocar el sitio real)
+
+| | Rama | Dirección |
+|---|---|---|
+| **Sitio real** (lo que ve la gente) | `main` | https://wildmilu.github.io |
+| **Sitio de prueba** | `dev` | https://wildmilu.github.io/lab-t8wjo9y/ |
+
+- El de prueba tiene una franja naranja "SITIO DE PRUEBA", Google no lo indexa
+  y no cuenta visitas. La dirección es difícil de adivinar a propósito
+  (no la compartas públicamente).
+- Su panel (`/lab-t8wjo9y/admin/`) guarda en la rama `dev`: podés probar subir,
+  borrar o reordenar sin tocar el sitio real. Usa la misma llave.
+- **Cómo se trabaja:** los cambios se hacen en `dev` → se prueban en el sitio de
+  prueba → cuando están OK se pasan a `main` (pull request de `dev` a `main`).
+- Antes de empezar algo nuevo, conviene traer a `dev` lo último de `main`
+  (por ejemplo, las fotos que haya publicado Mili).
+- Si el sitio de prueba tiene un error, el real se publica igual.

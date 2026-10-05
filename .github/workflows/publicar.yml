@@ -1,12 +1,15 @@
-# WildMilu · Publica el sitio en GitHub Pages en cada cambio de "main"
-# (tuyo o del panel de Mili). Antes de publicar genera la página de cada
-# foto (vista previa al compartir) y el sitemap para Google.
+# WildMilu · Publica en GitHub Pages:
+#   - el sitio real        (rama "main") → https://wildmilu.github.io
+#   - el sitio de prueba   (rama "dev")  → https://wildmilu.github.io/lab-t8wjo9y/
+# Corre en cada cambio de "main" (tuyo o del panel de Mili) y cuando "dev"
+# avisa que cambió (ver avisar-prueba.yml). Si el de prueba falla, el real
+# se publica igual.
 name: Publicar sitio
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:      # botón "Run workflow" para publicar a mano
+  workflow_dispatch:      # botón "Run workflow" (y el aviso de la rama dev)
 
 permissions:
   contents: read
@@ -17,15 +20,33 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  RUTA_PRUEBA: lab-t8wjo9y
+
 jobs:
   armar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Bajar el sitio real (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: real
+      - name: Bajar el sitio de prueba (dev)
+        id: dev
+        continue-on-error: true      # si la rama dev no existe, se publica solo el real
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: prueba
       - name: Instalar Pillow (para miniaturas faltantes)
         run: pip install --quiet pillow
-      - name: Generar páginas de fotos, miniaturas faltantes y sitemap
-        run: python3 scripts/generar.py
+      - name: Armar el sitio real
+        run: python3 real/scripts/generar.py --salida ../_site
+      - name: Armar el sitio de prueba
+        if: steps.dev.outcome == 'success'
+        continue-on-error: true      # un error en la prueba nunca frena al sitio real
+        run: python3 prueba/scripts/generar.py --salida ../_site/$RUTA_PRUEBA --base /$RUTA_PRUEBA --prueba
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -14,7 +14,8 @@
 const CONFIG = {
   owner: "wildmilu",
   repo: "wildmilu.github.io",
-  branch: "main",
+  // El panel del sitio de prueba (/lab-t8wjo9y/admin) guarda en la rama "dev"; el real, en "main"
+  branch: location.pathname.startsWith("/lab-t8wjo9y/") ? "dev" : "main",
   archivoDatos: "fotos.json",
   archivoSitio: "sitio.json",   // texto y foto de "Sobre Milagros"
   carpetaImagenes: "images",

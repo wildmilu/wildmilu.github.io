@@ -19,7 +19,7 @@ wildmilu/
 │   ├── admin.js        → habla con la API de GitHub y achica las fotos
 │   └── admin.css
 ├── scripts/generar.py  → arma la versión publicada: página por foto (vista previa) + sitemap
-├── .github/workflows/  → publica solo en GitHub Pages en cada cambio
+├── .github/workflows/  → publica solo en GitHub Pages: sitio real (main) + sitio de prueba (dev)
 ├── 404.html
 ├── PUBLICAR.md         → 🚀 para vos: hosting gratis + crear la llave del panel
 ├── GUIA-MILAGROS.md    → 🐦 guía simple para que Mili suba fotos

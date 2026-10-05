@@ -9,19 +9,31 @@ Copia el sitio a _site/ y le agrega:
   - sitemap.xml          → para que Google encuentre el sitio y sus fotos.
 
 Para probarlo en tu compu:  python3 scripts/generar.py  (y mirá la carpeta _site/)
+
+Sitio de prueba (rama "dev"):
+  python3 scripts/generar.py --salida ../_site/lab-t8wjo9y --base /lab-t8wjo9y --prueba
+  → franja "SITIO DE PRUEBA", sin Google ni estadísticas, y el panel guarda en "dev".
 """
+import argparse
 import html
 import json
 import os
 import shutil
 from datetime import datetime, timezone
 
-SITIO_URL = "https://wildmilu.github.io"   # si algún día hay dominio propio, cambiarlo acá
-SALIDA = "_site"
-NO_PUBLICAR = {".git", ".github", "scripts", SALIDA, "node_modules"}
-ANCHO_MINIATURA = 800
+opciones = argparse.ArgumentParser(description="Arma la versión publicada de WildMilu")
+opciones.add_argument("--salida", default="_site", help="carpeta donde se arma el sitio")
+opciones.add_argument("--base", default="", help='subcarpeta del sitio publicado (ej: "/lab-t8wjo9y")')
+opciones.add_argument("--prueba", action="store_true", help="versión de prueba (rama dev)")
+args = opciones.parse_args()
 
 raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SALIDA = os.path.abspath(os.path.join(raiz, args.salida)) if not os.path.isabs(args.salida) else args.salida
+BASE = args.base.rstrip("/")
+SITIO_URL = "https://wildmilu.github.io" + BASE   # si algún día hay dominio propio, cambiarlo acá
+NO_PUBLICAR = {".git", ".github", "scripts", "_site", "node_modules"}
+ANCHO_MINIATURA = 800
+
 os.chdir(raiz)
 
 
@@ -106,7 +118,7 @@ PLANTILLA = """<!DOCTYPE html>
 <meta name="description" content="{descripcion}">
 <meta name="robots" content="noindex, follow">
 <link rel="canonical" href="{sitio}/">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="{base}/favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="WildMilu">
 <meta property="og:title" content="{titulo} · WildMilu">
@@ -135,7 +147,7 @@ for foto in fotos:
     ancho, alto = foto.get("ancho"), foto.get("alto")
     if ancho and alto and imagen != ruta(foto["src"]) and ancho > ANCHO_MINIATURA:
         ancho, alto = ANCHO_MINIATURA, round(alto * ANCHO_MINIATURA / ancho)
-    destino = f"/#foto={ident}"
+    destino = f"{BASE}/#foto={ident}"
     carpeta = os.path.join(SALIDA, "foto", ident)
     os.makedirs(carpeta, exist_ok=True)
     with open(os.path.join(carpeta, "index.html"), "w", encoding="utf-8") as f:
@@ -143,6 +155,7 @@ for foto in fotos:
             titulo=e(foto.get("titulo") or "Foto"),
             descripcion=e(descripcion),
             sitio=SITIO_URL,
+            base=BASE,
             pagina=f"{SITIO_URL}/foto/{ident}/",
             imagen=e(url(imagen)),
             ancho=ancho or "", alto=alto or "",
@@ -150,7 +163,39 @@ for foto in fotos:
             destino_js=json.dumps(destino),
         ))
 
-# ---------- 3. Mapa del sitio para Google (con las fotos, para Google Imágenes) ----------
+# ---------- 3. Sitio de prueba: franja visible, sin Google ni estadísticas ----------
+if args.prueba:
+    FRANJA = (
+        '<div class="franja-prueba" role="note">🧪 SITIO DE PRUEBA'
+        '<span class="franja-largo"> · lo que cambies acá no se ve en el sitio real</span>'
+        ' · <a href="/">Ir al sitio real</a></div>'
+    )
+    ESTILO = """<meta name="robots" content="noindex, nofollow">
+<style>
+  .franja-prueba { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; height: 26px;
+    display: flex; align-items: center; justify-content: center; gap: .3rem;
+    background: #c1663f; color: #fff; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .3px; }
+  .franja-prueba a { color: #fff; }
+  @media (max-width: 700px) { .franja-prueba .franja-largo { display: none; } }
+  body { padding-top: 26px; }
+  .nav, .pendientes { top: 26px !important; }
+  .lightbox { top: 26px !important; }
+  .franja-prueba ~ * .nav__links { top: 100%; }
+</style>"""
+    for pagina in ("index.html", os.path.join("admin", "index.html")):
+        archivo = os.path.join(SALIDA, pagina)
+        with open(archivo, encoding="utf-8") as f:
+            contenido = f.read()
+        contenido = contenido.replace("</head>", ESTILO + "\n</head>", 1)
+        contenido = contenido.replace("<body>", "<body>\n" + FRANJA, 1)
+        # sin estadísticas ni verificación de Google en la versión de prueba
+        contenido = "\n".join(l for l in contenido.split("\n") if "goatcounter" not in l and "google-site-verification" not in l)
+        with open(archivo, "w", encoding="utf-8") as f:
+            f.write(contenido)
+    print(f"Versión de PRUEBA lista: {len(fotos)} páginas de fotos en {SALIDA}/")
+    raise SystemExit(0)
+
+# ---------- 4. Mapa del sitio para Google (con las fotos, para Google Imágenes) ----------
 imagenes = "\n".join(
     f"""    <image:image>
       <image:loc>{e(url(ruta(foto["src"])))}</image:loc>
