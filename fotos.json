@@ -1,6 +1,19 @@
 {
   "fotos": [
     {
+      "src": "images/masked1-1-de-1.jpg",
+      "titulo": "Masked lapwing",
+      "especie": "Vanellus miles novaehollandiae",
+      "categoria": "Aves",
+      "lugar": "Christchurch, Nueva Zelanda",
+      "fecha": "Octubre 2026",
+      "descripcion": "Me imagino que estarán pensando ¿Qué le pasó a ese Tero y por qué está usando máscara?\nEste es el Masked lapwing (𝘝𝘢𝘯𝘦𝘭𝘭𝘶𝘴 𝘮𝘪𝘭𝘦𝘴 𝘯𝘰𝘷𝘢𝘦𝘩𝘰𝘭𝘭𝘢𝘯𝘥𝘪𝘢𝘦), un primo exótico de nuestro tan amado Tero -aunque igual de ruidoso-.\nSe encuentra en Australia, Tasmania, y Nueva Zelanda, en una amplia gama de ambientes (tanto naturales como artificiales). Se alimenta principalmente de gusanos, arañas, e insectos, además de moluscos, crustáceos, semillas y hojas (e incluso ranas!).\nComo verán en la foto 3, el pichón es bastante similar al pichón de nuestro 𝘝𝘢𝘯𝘦𝘭𝘭𝘶𝘴 𝘤𝘩𝘪𝘭𝘦𝘯𝘴𝘪𝘴, pero con un incipiente antifaz amarillento.\nNo presenta dimorfismo sexual, exceptuando que el macho es ligeramente más grande.",
+      "ancho": 2000,
+      "alto": 1579,
+      "color": "#4b6112",
+      "marca": "arriba-clara"
+    },
+    {
       "src": "images/churrinche.jpg",
       "titulo": "Churrinche",
       "especie": "Pyrocephalus rubinus",
