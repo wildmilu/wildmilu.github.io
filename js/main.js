@@ -218,6 +218,9 @@ const lbCompartir = document.getElementById("lb-compartir");
 const lbContenido = document.querySelector(".lightbox__contenido");
 const lbMeta      = document.querySelector(".lightbox__meta");
 const lbVecina    = document.getElementById("lb-vecina");
+const lbLugar     = document.getElementById("lb-lugar");
+const lbMas       = document.getElementById("lb-mas");
+const lbHoja      = document.getElementById("lb-hoja");
 
 const DURACION = 320;                              // ms de las animaciones
 const CURVA = "cubic-bezier(0.22, 0.8, 0.24, 1)";
@@ -249,7 +252,11 @@ document.addEventListener("pointerdown", e => { usandoTeclado = false; ultimoPun
    antes de que cargue (lo usan las animaciones). */
 function tamanoEnVisor(foto) {
   const maxAncho = lbContenido.clientWidth || window.innerWidth;
-  const maxAlto = window.innerHeight * 0.72;
+  // la foto entra entera junto con sus textos (la descripción larga va en "Leer más")
+  const estilo = getComputedStyle(lightbox);
+  const libre = window.innerHeight - parseFloat(estilo.paddingTop) - parseFloat(estilo.paddingBottom)
+    - (parseFloat(getComputedStyle(lbContenido).rowGap) || 0) - lbMeta.offsetHeight;
+  const maxAlto = Math.max(window.innerHeight * 0.35, Math.min(window.innerHeight * 0.72, libre));
   const prop = proporcion(foto);
   let ancho = Math.min(maxAncho, foto.ancho || maxAncho), alto = ancho * prop;
   if (alto > maxAlto) { alto = maxAlto; ancho = alto / prop; }
@@ -338,6 +345,7 @@ function abrirLightbox(indice, { desdeLink = false } = {}) {
 async function ocultarLightbox() {
   if (!lightbox.classList.contains("abierto") || cerrando) return;
   cerrando = true;
+  lbHoja.hidden = true;
   const foto = fotosVisibles[indiceActual];
   let destino = foto && !sinMovimiento.matches ? miniaturaEnGaleria(foto) : null;
 
@@ -415,7 +423,7 @@ function mostrarFoto() {
   const foto = fotosVisibles[indiceActual];
   if (!foto) return;
   reiniciarZoom(false);
-  ajustarTamano();
+  cerrarHoja();
   // Primero la miniatura (ya está en caché, aparece al instante)
   // y en cuanto baja la foto grande, se reemplaza.
   const grande = normalizarRuta(foto.src);
@@ -426,9 +434,14 @@ function mostrarFoto() {
   lbImg.alt = [foto.titulo, foto.especie].filter(Boolean).join(" — ");
   lbTitulo.textContent  = foto.titulo || "";
   lbEspecie.textContent = foto.especie || "";
-  const partes = [foto.lugar, foto.fecha].filter(Boolean).join(" · ");
-  lbDetalle.textContent = [partes, foto.descripcion].filter(Boolean).join(" — ");
+  lbLugar.textContent = [foto.lugar, foto.fecha].filter(Boolean).join(" · ");
+  lbLugar.hidden = !lbLugar.textContent;
+  lbDetalle.textContent = foto.descripcion || "";
+  lbDetalle.hidden = !lbDetalle.textContent;
+  // "Leer más" solo si la descripción no entra en las líneas visibles
+  lbMas.hidden = lbDetalle.hidden || lbDetalle.scrollHeight <= lbDetalle.clientHeight + 1;
   lbContador.textContent = `${indiceActual + 1} / ${fotosVisibles.length}`;
+  ajustarTamano();              // con los textos ya puestos: sabe cuánto lugar queda para la foto
   precargarVecinas();
 }
 
@@ -476,6 +489,30 @@ lbCompartir.addEventListener("click", async () => {
 });
 
 /* Eventos del visor */
+/* "Leer más": el texto completo sube en una hoja que se puede scrollear */
+let focoHoja = null;
+function abrirHoja() {
+  const foto = fotosVisibles[indiceActual];
+  if (!foto) return;
+  document.getElementById("lb-hoja-titulo").textContent = foto.titulo || "";
+  document.getElementById("lb-hoja-especie").textContent = foto.especie || "";
+  document.getElementById("lb-hoja-lugar").textContent = lbLugar.textContent;
+  document.getElementById("lb-hoja-texto").textContent = foto.descripcion || "";
+  lbHoja.hidden = false;
+  lbHoja.querySelector(".hoja__caja").scrollTop = 0;
+  focoHoja = document.activeElement;
+  if (usandoTeclado) document.getElementById("lb-hoja-cerrar").focus({ preventScroll: true });
+}
+function cerrarHoja() {
+  if (lbHoja.hidden) return;
+  lbHoja.hidden = true;
+  if (usandoTeclado && focoHoja && lightbox.contains(focoHoja)) focoHoja.focus({ preventScroll: true });
+}
+const hojaAbierta = () => !lbHoja.hidden;
+lbMas.addEventListener("click", abrirHoja);
+document.getElementById("lb-hoja-cerrar").addEventListener("click", cerrarHoja);
+lbHoja.addEventListener("click", e => { if (e.target === lbHoja) cerrarHoja(); });   // tocar afuera la cierra
+
 lbCerrar.addEventListener("click", cerrarLightbox);
 document.getElementById("lb-prev").addEventListener("click", () => cambiar(-1));
 document.getElementById("lb-next").addEventListener("click", () => cambiar(1));
@@ -483,6 +520,11 @@ lightbox.addEventListener("click", e => { if (e.target === lightbox && !ampliada
 
 document.addEventListener("keydown", e => {
   if (!visorAbierto()) return;
+  if (hojaAbierta()) {
+    if (e.key === "Escape") cerrarHoja();
+    if (e.key === "Tab") { e.preventDefault(); document.getElementById("lb-hoja-cerrar").focus(); }
+    return;
+  }
   if (e.key === "Escape")     cerrarLightbox();
   if (e.key === "ArrowLeft")  cambiar(-1);
   if (e.key === "ArrowRight") cambiar(1);
@@ -697,7 +739,7 @@ function empezarMover(t) {
 }
 
 lightbox.addEventListener("touchstart", e => {
-  if (animando || cerrando) return;
+  if (animando || cerrando || hojaAbierta()) return;   // con la hoja abierta, el dedo scrollea el texto
   if (e.touches.length === 2) {                      // empieza un pellizco: se deja cualquier otro gesto
     if (modo === "gesto" && direccion === "horizontal") cancelarPase();
     if (modo === "gesto" && direccion === "vertical") moverVisor(0, true);

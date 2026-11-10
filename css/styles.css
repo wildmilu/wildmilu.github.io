@@ -205,16 +205,52 @@ img { display: block; max-width: 100%; }
 .lightbox__meta { color: var(--crema); }
 .lightbox__meta h3 { font-family: var(--fuente-titulo); font-size: 1.8rem; margin-bottom: 0.25rem; }
 .lightbox__meta .esp { font-style: italic; opacity: 0.8; }
-.lightbox__meta .detalle { font-size: 0.9rem; margin-top: 0.5rem; opacity: 0.9; }
+.lightbox__meta .lugar { font-size: 0.8rem; margin-top: 0.35rem; opacity: 0.6; letter-spacing: 0.3px; }
+/* La descripción se corta en pocas líneas: la foto y los botones siempre entran */
+.lightbox__meta .detalle {
+  font-size: 0.9rem; margin: 0.5rem auto 0; max-width: 680px; opacity: 0.9;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
+.lightbox__botones { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.lightbox__mas { background: none; border: none; color: var(--crema); font: inherit; font-size: 0.85rem;
+  padding: 0.5rem 0.6rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; opacity: 0.85; }
+.lightbox__mas:hover { opacity: 1; }
 .lightbox__compartir {
-  display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.9rem;
+  display: inline-flex; align-items: center; gap: 0.45rem;
   padding: 0.5rem 1.1rem; border-radius: 50px; cursor: pointer;
   background: rgba(247, 244, 236, 0.1); color: var(--crema);
   border: 1px solid rgba(247, 244, 236, 0.25);
   font: inherit; font-size: 0.85rem; transition: background 0.2s;
 }
 .lightbox__compartir:hover { background: rgba(247, 244, 236, 0.2); }
-.lightbox__meta .contador { font-size: 0.75rem; letter-spacing: 2px; margin-top: 0.9rem; opacity: 0.45; }
+.lightbox__contador {
+  position: absolute; top: 2.1rem; left: 2rem; z-index: 3; margin: 0;
+  color: var(--crema); font-size: 0.75rem; letter-spacing: 2px; opacity: 0.5; transition: opacity 0.25s ease;
+}
+
+/* Hoja con el texto completo */
+.lightbox__hoja {
+  position: absolute; inset: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(20, 18, 15, 0.55); animation: hoja-fondo 0.25s ease;
+}
+.lightbox__hoja[hidden] { display: none; }
+.hoja__caja {
+  position: relative; width: 100%; max-width: 680px; max-height: 78vh; max-height: 78dvh;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  background: #1f1c18; color: var(--crema); border-radius: 18px 18px 0 0;
+  padding: 1.6rem 1.5rem calc(2rem + env(safe-area-inset-bottom)); text-align: left;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4); animation: hoja-subir 0.3s cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+.hoja__caja h3 { font-family: var(--fuente-titulo); font-size: 1.5rem; padding-right: 2.5rem; }
+.hoja__caja .esp { font-style: italic; opacity: 0.8; margin-top: 0.2rem; }
+.hoja__caja .lugar { font-size: 0.8rem; opacity: 0.6; margin-top: 0.35rem; }
+.hoja__texto { margin-top: 1rem; font-size: 0.95rem; line-height: 1.7; white-space: pre-line; opacity: 0.92; }
+.hoja__cerrar {
+  position: absolute; top: 0.9rem; right: 1rem; width: 2.2rem; height: 2.2rem; border-radius: 50%;
+  background: rgba(247, 244, 236, 0.1); border: none; color: var(--crema); font-size: 1.4rem; line-height: 1; cursor: pointer;
+}
+@keyframes hoja-subir { from { transform: translateY(100%); } }
+@keyframes hoja-fondo { from { opacity: 0; } }
 .lightbox__cerrar {
   position: absolute; top: 1.5rem; right: 2rem; font-size: 2.2rem;
   color: #fff; cursor: pointer; line-height: 1; background: none; border: none;
@@ -233,7 +269,9 @@ img { display: block; max-width: 100%; }
   .lightbox { padding: 4.5rem 1rem 2rem; }
   .lightbox__nav { display: none; }
   .lightbox__cerrar { top: 1rem; right: 1rem; padding: 0.5rem; }
+  .lightbox__contador { top: 1.75rem; left: 1.25rem; }
   .lightbox__meta h3 { font-size: 1.6rem; }
+  .lightbox__meta .detalle { -webkit-line-clamp: 2; line-clamp: 2; }
 }
 
 /* ---------- SOBRE MILAGROS ---------- */
@@ -285,7 +323,8 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
 .lightbox__cerrar, .lightbox__nav { z-index: 3; transition: opacity 0.25s ease; }
 .lightbox.transicion .lightbox__meta,
 .lightbox.transicion .lightbox__nav,
-.lightbox.transicion .lightbox__cerrar { opacity: 0; }
+.lightbox.transicion .lightbox__cerrar,
+.lightbox.transicion .lightbox__contador { opacity: 0; }
 
 .lightbox__img {
   position: relative; z-index: 1; transform-origin: center; will-change: transform;
@@ -294,7 +333,8 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
 .lightbox.ampliado .lightbox__img { cursor: grab; }
 .lightbox.moviendo .lightbox__img { cursor: grabbing; }
 .lightbox.ampliado .lightbox__meta,
-.lightbox.ampliado .lightbox__nav { opacity: 0; pointer-events: none; }
+.lightbox.ampliado .lightbox__nav,
+.lightbox.ampliado .lightbox__contador { opacity: 0; pointer-events: none; }
 @media (hover: none) { .lightbox__img { cursor: default; } }
 
 /* ---------- VOLVER ARRIBA ---------- */
@@ -312,4 +352,5 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
 /* Quien pidió "reducir movimiento" en su sistema: sin animaciones */
 @media (prefers-reduced-motion: reduce) {
   .card img, .galeria, .lightbox, .lightbox__meta, .arriba { transition: none !important; }
+  .lightbox__hoja, .hoja__caja { animation: none !important; }
 }

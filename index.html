@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=5">
+  <link rel="stylesheet" href="css/styles.css?v=6">
   <!-- Portada: en el celular baja una versión recortada y más liviana -->
   <link rel="preload" as="image" href="images/portada-movil.jpg" media="(max-aspect-ratio: 1/1)">
   <link rel="preload" as="image" href="images/picaflor-cometa.jpg" media="(min-aspect-ratio: 1/1)">
@@ -132,12 +132,26 @@
       <div class="lightbox__meta">
         <h3 id="lb-titulo"></h3>
         <p class="esp" id="lb-especie"></p>
+        <p class="lugar" id="lb-lugar"></p>
         <p class="detalle" id="lb-detalle"></p>
+        <div class="lightbox__botones">
+        <button class="lightbox__mas" id="lb-mas" type="button" hidden>Leer más</button>
         <button class="lightbox__compartir" id="lb-compartir" type="button">
           <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           Compartir
         </button>
-        <p class="contador" id="lb-contador"></p>
+        </div>
+      </div>
+    </div>
+    <p class="lightbox__contador" id="lb-contador"></p>
+    <!-- Texto completo de la foto: sube desde abajo, se scrollea si es largo -->
+    <div class="lightbox__hoja" id="lb-hoja" hidden>
+      <div class="hoja__caja" role="dialog" aria-modal="true" aria-labelledby="lb-hoja-titulo">
+        <button class="hoja__cerrar" id="lb-hoja-cerrar" type="button" aria-label="Cerrar texto">&times;</button>
+        <h3 id="lb-hoja-titulo"></h3>
+        <p class="esp" id="lb-hoja-especie"></p>
+        <p class="lugar" id="lb-hoja-lugar"></p>
+        <p class="hoja__texto" id="lb-hoja-texto"></p>
       </div>
     </div>
   </div>
@@ -151,7 +165,7 @@
   <!-- ⚠️ IMPORTANTE: solo main.js.
        NO debe haber ninguna línea con "js/data.js": ese era el archivo
        de la versión 1. Ahora las fotos se leen desde fotos.json. -->
-  <script src="js/main.js?v=11"></script>
+  <script src="js/main.js?v=12"></script>
 
   <!-- Estadísticas de visitas (GoatCounter: gratis, sin cookies) -->
   <script data-goatcounter="https://wildmilu.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
