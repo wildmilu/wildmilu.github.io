@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="admin.css?v=3">
+  <link rel="stylesheet" href="admin.css?v=4">
 </head>
 <body>
 
@@ -83,7 +83,25 @@
         <label class="btn btn--suave" for="archivo" id="archivo-label">Elegir foto</label>
         <input id="archivo" type="file" accept="image/*" hidden>
         <small id="archivo-info"></small>
+        <button class="btn btn--suave" type="button" id="btn-poner-marca" hidden>Ponerle la marca de agua</button>
+        <small id="marca-ya" hidden>Esta foto ya tiene la marca de agua.</small>
       </div>
+
+      <fieldset class="marca" id="marca" hidden>
+        <legend>Marca de agua</legend>
+        <div class="segmentos" role="radiogroup" aria-label="Posición de la marca">
+          <label><input type="radio" name="marca-pos" value="auto" checked><span>Automática</span></label>
+          <label><input type="radio" name="marca-pos" value="arriba"><span>Arriba</span></label>
+          <label><input type="radio" name="marca-pos" value="abajo"><span>Abajo</span></label>
+          <label><input type="radio" name="marca-pos" value="no"><span>Sin marca</span></label>
+        </div>
+        <div class="segmentos" role="radiogroup" aria-label="Color de la marca" id="marca-colores">
+          <label><input type="radio" name="marca-color" value="auto" checked><span>Color automático</span></label>
+          <label><input type="radio" name="marca-color" value="clara"><span>Clara</span></label>
+          <label><input type="radio" name="marca-color" value="oscura"><span>Oscura</span></label>
+        </div>
+        <small id="marca-info"></small>
+      </fieldset>
 
       <label for="f-titulo">Título *</label>
       <input id="f-titulo" required placeholder="Ej: Zorzal al amanecer">
@@ -144,6 +162,6 @@
 
   <!-- Para reordenar arrastrando (funciona con el dedo en el celular) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.7/Sortable.min.js"></script>
-  <script src="admin.js?v=6"></script>
+  <script src="admin.js?v=7"></script>
 </body>
 </html>

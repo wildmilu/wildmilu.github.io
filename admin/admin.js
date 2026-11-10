@@ -42,7 +42,11 @@ let imagenesNuevas = new Map();   // ruta → { base64, miniatura } (pendientes 
 let vistasPrevias = new Map();    // ruta → objectURL (para ver fotos aún no desplegadas)
 let cambios = [];             // descripciones para el mensaje del commit
 let editando = -1;            // índice en edición (-1 = nueva)
-let imagenElegida = null;     // { base64, url, nombre } en el formulario
+let imagenElegida = null;     // foto lista (renderizar) elegida en el formulario
+let fuenteForm = null;        // foto preparada en el formulario: cambiar la marca no obliga a elegirla de nuevo
+let origenForm = null;        // archivo (o foto publicada) del que sale fuenteForm
+let reemplazaRuta = false;    // true: se guarda en la misma ruta (marcar una foto ya publicada o una pendiente)
+let turnoMarca = 0;           // descarta vistas previas viejas si se cambia de opción rápido
 
 const $ = id => document.getElementById(id);
 
@@ -200,12 +204,16 @@ function urlMiniatura(src) {
   return vistasPrevias.get(ruta) || "../" + rutaMiniatura(ruta);
 }
 
-/* Dibuja la imagen a cierto tamaño y la devuelve como JPEG (Blob) */
-function aJpeg(img, ancho, alto) {
+/* Dibuja una imagen (o canvas) a cierto tamaño. Devuelve el canvas. */
+function lienzoDe(img, ancho, alto) {
   const canvas = document.createElement("canvas");
   canvas.width = ancho;
   canvas.height = alto;
   canvas.getContext("2d").drawImage(img, 0, 0, ancho, alto);
+  return canvas;
+}
+
+function aBlob(canvas) {
   return new Promise((resolve, reject) =>
     canvas.toBlob(b => b ? resolve(b) : reject(new Error("No se pudo convertir la imagen")), "image/jpeg", CONFIG.calidad));
 }
@@ -229,37 +237,147 @@ function cargarImagen(archivo) {
   });
 }
 
-/* Achica la foto (lado mayor ≤ maxLado), la pasa a JPEG y arma su miniatura */
-async function procesarImagen(archivo) {
-  const img = await cargarImagen(archivo);
-  const w = img.naturalWidth, h = img.naturalHeight;
+/* ---------- Marca de agua ----------
+   Línea fina + "MILAGROS TORRES ETCHEGORRY", centrada arriba o abajo.
+   Se agrega solo a la copia que se publica: el archivo de Mili queda intacto.
+   Los PNG (admin/marca/) son los mismos que usa en Lightroom. */
+const MARCA = {
+  png: { clara: "marca/marca-clara.png", oscura: "marca/marca-oscura.png" },
+  altoNombre: 64,    // px del nombre dentro del PNG
+  relleno: 38,       // px transparentes alrededor (lugar para la sombra)
+  tamano: 0.0135,    // alto del nombre relativo al ancho de la foto
+  margen: 0.045,     // distancia al borde, relativa al alto
+  opacidad: 0.92,
+  umbralClaro: 165,  // brillo de fondo a partir del cual va la oscura
+};
+const SIN_MARCA = { pos: "no", color: "auto" };
+const MARCA_AUTO = { pos: "auto", color: "auto" };
 
+let pngsMarca = null;
+function cargarMarcas() {
+  if (!pngsMarca) {
+    const cargar1 = src => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("No se pudo cargar la marca de agua"));
+      img.src = src;
+    });
+    pngsMarca = Promise.all([cargar1(MARCA.png.clara), cargar1(MARCA.png.oscura)])
+      .then(([clara, oscura]) => ({ clara, oscura }))
+      .catch(err => { pngsMarca = null; throw err; });
+  }
+  return pngsMarca;
+}
+
+/* Dónde va el PNG (x, y, ancho, alto) y la caja que ocupa la marca visible */
+function geometriaMarca(W, H, pos, png) {
+  const s = Math.max(W, H * 0.75) * MARCA.tamano / MARCA.altoNombre;   // en fotos verticales no queda minúscula
+  const w = png.width * s, h = png.height * s, r = MARCA.relleno * s;
+  const m = H * MARCA.margen;
+  const x = (W - w) / 2;
+  const y = pos === "arriba" ? m - r : H - m - (h - r);
+  return { x, y, w, h, caja: { x: x + r, y: y + r, w: w - 2 * r, h: h - 2 * r } };
+}
+
+/* Mira la franja de arriba y la de abajo: cuánto detalle tienen y qué tan claras son */
+function analizarZonas(lienzo, png) {
+  const k = Math.min(1, 400 / lienzo.width);
+  const w = Math.max(1, Math.round(lienzo.width * k)), h = Math.max(1, Math.round(lienzo.height * k));
+  const chico = document.createElement("canvas");
+  chico.width = w; chico.height = h;
+  const ctx = chico.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(lienzo, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const gris = (x, y) => { const i = (y * w + x) * 4; return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; };
+  const zona = pos => {
+    const { caja } = geometriaMarca(lienzo.width, lienzo.height, pos, png);
+    const x0 = Math.max(0, Math.floor(caja.x * k)), x1 = Math.min(w, Math.ceil((caja.x + caja.w) * k));
+    const y0 = Math.max(0, Math.floor(caja.y * k)), y1 = Math.min(h, Math.ceil((caja.y + caja.h) * k));
+    let brillo = 0, detalle = 0, n = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      const g = gris(x, y);
+      brillo += g;
+      if (x + 1 < x1) detalle += Math.abs(g - gris(x + 1, y));
+      if (y + 1 < y1) detalle += Math.abs(g - gris(x, y + 1));
+      n++;
+    }
+    return { brillo: n ? brillo / n : 128, detalle: n ? detalle / n : 0 };
+  };
+  return { arriba: zona("arriba"), abajo: zona("abajo") };
+}
+
+/* "auto" → posición y color concretos para esta foto */
+function resolverMarca(fuente, marca) {
+  if (!marca || marca.pos === "no") return null;
+  const pos = marca.pos === "auto"
+    ? (fuente.zonas.arriba.detalle <= fuente.zonas.abajo.detalle ? "arriba" : "abajo")
+    : marca.pos;
+  const color = marca.color === "auto"
+    ? (fuente.zonas[pos].brillo > MARCA.umbralClaro ? "oscura" : "clara")
+    : marca.color;
+  return { pos, color };
+}
+
+/* Achica la foto (lado mayor ≤ maxLado) y la deja lista para marcar */
+async function prepararFuente(origen) {
+  const img = await cargarImagen(origen);
+  const w = img.naturalWidth, h = img.naturalHeight;
   const escala = Math.min(1, CONFIG.maxLado / Math.max(w, h));
   const ancho = Math.round(w * escala), alto = Math.round(h * escala);
-  let blob = await aJpeg(img, ancho, alto);
-  // Si ya era un JPEG chico, recomprimirlo solo lo empeora: va el original.
-  if (escala === 1 && archivo.type === "image/jpeg" && archivo.size <= blob.size) blob = archivo;
+  const lienzo = lienzoDe(img, ancho, alto);
 
   // color promedio: la galería lo muestra de fondo mientras la foto carga
-  const lienzo = document.createElement("canvas");
-  lienzo.width = lienzo.height = 1;
-  const ctx = lienzo.getContext("2d");
-  ctx.drawImage(img, 0, 0, 1, 1);
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  const [r, g, b] = lienzoDe(lienzo, 1, 1).getContext("2d").getImageData(0, 0, 1, 1).data;
   const color = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
 
-  const escalaMini = Math.min(1, CONFIG.anchoMiniatura / w);
-  const mini = await aJpeg(img, Math.round(w * escalaMini), Math.round(h * escalaMini));
+  let zonas = null;
+  try { zonas = analizarZonas(lienzo, (await cargarMarcas()).clara); } catch {}
+  return { origen, lienzo, escala, ancho, alto, color, zonas };
+}
+
+/* Arma la foto final (con o sin marca) y su miniatura */
+async function renderizar(fuente, marca) {
+  const pngs = marca && marca.pos !== "no" ? await cargarMarcas() : null;
+  const aplicada = pngs && fuente.zonas ? resolverMarca(fuente, marca) : null;
+  let final = fuente.lienzo;
+  if (aplicada) {
+    final = lienzoDe(fuente.lienzo, fuente.ancho, fuente.alto);
+    const png = pngs[aplicada.color];
+    const g = geometriaMarca(fuente.ancho, fuente.alto, aplicada.pos, png);
+    const ctx = final.getContext("2d");
+    ctx.globalAlpha = MARCA.opacidad;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(png, g.x, g.y, g.w, g.h);
+  }
+  let blob = await aBlob(final);
+  // Si ya era un JPEG chico y no lleva marca, recomprimirlo solo lo empeora: va el original.
+  const o = fuente.origen;
+  if (!aplicada && fuente.escala === 1 && o.type === "image/jpeg" && o.size <= blob.size) blob = o;
+
+  const escalaMini = Math.min(1, CONFIG.anchoMiniatura / fuente.ancho);
+  const mini = await aBlob(lienzoDe(final, Math.round(fuente.ancho * escalaMini), Math.round(fuente.alto * escalaMini)));
 
   return {
     base64: await aBase64(blob),
     miniatura: await aBase64(mini),
     url: URL.createObjectURL(blob),
     peso: blob.size,
-    ancho,
-    alto,
-    color,
+    ancho: fuente.ancho,
+    alto: fuente.alto,
+    color: fuente.color,
+    origen: fuente.origen,
+    marca: marca || SIN_MARCA,   // lo elegido (puede ser "auto")
+    aplicada,                    // lo que quedó en la foto, o null
   };
+}
+
+/* Achica + marca de una (fotos nuevas en tanda, foto de perfil) */
+async function procesarImagen(archivo, marca = SIN_MARCA) {
+  return renderizar(await prepararFuente(archivo), marca);
+}
+
+function textoMarca(aplicada) {
+  return aplicada ? `${aplicada.pos}, ${aplicada.color}` : "";
 }
 
 function slug(texto) {
@@ -344,7 +462,7 @@ function render() {
     if (imagenesNuevas.has(rutaRepo(foto.src))) {
       const et = document.createElement("span");
       et.className = "etiqueta";
-      et.textContent = "nueva";
+      et.textContent = esPublicada(foto.src) ? "con marca" : "nueva";
       titulo.appendChild(et);
     }
     const meta = document.createElement("div");
@@ -397,9 +515,18 @@ function borrar(i) {
 }
 
 /* ---------- Formulario ---------- */
+function esPublicada(src) {
+  const ruta = rutaRepo(src);
+  return fotosPublicadas.some(f => rutaRepo(f.src) === ruta);
+}
+
 function abrirFormulario(i = -1) {
   editando = i;
   imagenElegida = null;
+  fuenteForm = null;
+  origenForm = null;
+  reemplazaRuta = false;
+  turnoMarca++;
   const foto = i >= 0 ? fotos[i] : { titulo: "", especie: "", categoria: "Aves", lugar: "", fecha: "", descripcion: "" };
 
   $("dialogo-titulo").textContent = i >= 0 ? "Editar foto" : "Agregar foto";
@@ -409,6 +536,24 @@ function abrirFormulario(i = -1) {
   $("form-error").hidden = true;
   $("vista-previa").hidden = i < 0;
   if (i >= 0) $("vista-previa").src = urlMiniatura(foto.src);
+
+  // Marca de agua: según si la foto es nueva, está pendiente o ya publicada
+  $("marca").hidden = true;
+  $("btn-poner-marca").hidden = true;
+  $("btn-poner-marca").disabled = false;
+  $("marca-ya").hidden = true;
+  const pendiente = i >= 0 ? imagenesNuevas.get(rutaRepo(foto.src)) : null;
+  if (pendiente && pendiente.origen) {
+    // todavía no se publicó: se puede cambiar la marca partiendo de la foto limpia
+    origenForm = pendiente.origen;
+    reemplazaRuta = true;
+    ponerMarcaEnForm(pendiente.marca || SIN_MARCA);
+    $("marca-info").textContent = pendiente.aplicada ? `Quedó ${textoMarca(pendiente.aplicada)}.` : "Va sin marca.";
+    $("marca").hidden = false;
+  } else if (i >= 0 && !/^https?:\/\//i.test(foto.src)) {
+    if (foto.marca) $("marca-ya").hidden = false;
+    else $("btn-poner-marca").hidden = false;
+  }
 
   $("f-titulo").value = foto.titulo || "";
   $("f-especie").value = foto.especie || "";
@@ -420,24 +565,96 @@ function abrirFormulario(i = -1) {
   $("dialogo").showModal();
 }
 
+function marcaDelForm() {
+  const valor = nombre => (document.querySelector(`input[name="${nombre}"]:checked`) || {}).value || "auto";
+  return { pos: valor("marca-pos"), color: valor("marca-color") };
+}
+
+function ponerMarcaEnForm(marca) {
+  for (const [nombre, valor] of [["marca-pos", marca.pos], ["marca-color", marca.color]]) {
+    const radio = document.querySelector(`input[name="${nombre}"][value="${valor}"]`);
+    if (radio) radio.checked = true;
+  }
+  $("marca-colores").classList.toggle("apagado", marca.pos === "no");
+}
+
+/* Vuelve a armar la vista previa con la marca elegida */
+async function actualizarMarca() {
+  const marca = marcaDelForm();
+  $("marca-colores").classList.toggle("apagado", marca.pos === "no");
+  if (!fuenteForm && !origenForm) return;
+  const turno = ++turnoMarca;
+  $("btn-guardar").disabled = true;
+  $("marca-info").textContent = "Aplicando…";
+  try {
+    if (!fuenteForm) fuenteForm = await prepararFuente(origenForm);
+    const listo = await renderizar(fuenteForm, marca);
+    if (turno !== turnoMarca) return;
+    imagenElegida = listo;
+    $("vista-previa").src = listo.url;
+    $("vista-previa").hidden = false;
+    const automatico = listo.aplicada && (marca.pos === "auto" || marca.color === "auto");
+    $("marca-info").textContent = !listo.aplicada
+      ? (marca.pos === "no" ? "La foto se publica sin marca." : "No se pudo cargar la marca de agua: va sin marca.")
+      : `Quedó ${textoMarca(listo.aplicada)}${automatico ? " (lo eligió el panel según la foto)" : ""}.`;
+  } catch {
+    if (turno === turnoMarca) $("marca-info").textContent = "No se pudo aplicar la marca. Probá de nuevo.";
+  } finally {
+    if (turno === turnoMarca) $("btn-guardar").disabled = false;
+  }
+}
+
 async function alElegirArchivo() {
   const archivo = $("archivo").files[0];
   if (!archivo) return;
   $("archivo-info").textContent = "Preparando la foto…";
   $("btn-guardar").disabled = true;
   try {
-    imagenElegida = await procesarImagen(archivo);
-    $("vista-previa").src = imagenElegida.url;
-    $("vista-previa").hidden = false;
+    fuenteForm = await prepararFuente(archivo);
+    origenForm = archivo;
+    reemplazaRuta = false;
+    imagenElegida = null;
+    $("btn-poner-marca").hidden = true;
+    $("marca-ya").hidden = true;
+    ponerMarcaEnForm(MARCA_AUTO);
+    $("marca").hidden = false;
+    await actualizarMarca();
+    if (!imagenElegida) throw new Error("sin imagen");
     const mb = (archivo.size / 1048576).toFixed(1);
     const kb = Math.round(imagenElegida.peso / 1024);
     $("archivo-info").textContent = `Lista ✓ ${imagenElegida.ancho}×${imagenElegida.alto}px · ${mb} MB → ${kb} KB`;
     if (!$("f-titulo").value) $("f-titulo").value = archivo.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
   } catch {
     imagenElegida = null;
+    fuenteForm = origenForm = null;
+    $("marca").hidden = true;
     $("archivo-info").textContent = "No se pudo leer esta foto. Probá con JPG o PNG.";
   } finally {
     $("btn-guardar").disabled = false;
+  }
+}
+
+/* Foto ya publicada sin marca: la baja del sitio y le pone la marca */
+async function ponerMarcaExistente() {
+  const foto = fotos[editando];
+  const btn = $("btn-poner-marca");
+  btn.disabled = true;
+  btn.textContent = "Cargando la foto…";
+  try {
+    const resp = await fetch("../" + rutaRepo(foto.src), { cache: "no-cache" });
+    if (!resp.ok) throw new Error(resp.status);
+    origenForm = await resp.blob();
+    fuenteForm = null;
+    reemplazaRuta = true;
+    ponerMarcaEnForm(MARCA_AUTO);
+    $("marca").hidden = false;
+    btn.hidden = true;
+    await actualizarMarca();
+  } catch {
+    $("archivo-info").textContent = "No se pudo cargar la foto publicada. Si la acabás de subir, esperá 1-2 minutos y probá de nuevo.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Ponerle la marca de agua";
   }
 }
 
@@ -469,24 +686,40 @@ function guardarFormulario(e) {
   // Tamaño de la foto: la galería lo usa para reservar el lugar y que nada salte al cargar
   if (anterior.ancho && anterior.alto) { datos.ancho = anterior.ancho; datos.alto = anterior.alto; }
   if (anterior.color) datos.color = anterior.color;
+  if (anterior.marca) datos.marca = anterior.marca;   // "arriba-clara": evita marcarla dos veces
 
+  let mensaje = editando >= 0 ? `Editar foto "${titulo}"` : `Agregar foto "${titulo}"`;
   if (imagenElegida) {
-    const ruta = rutaNueva(titulo);
-    imagenesNuevas.set(ruta, { base64: imagenElegida.base64, miniatura: imagenElegida.miniatura });
-    vistasPrevias.set(ruta, imagenElegida.url);
-    datos.src = ruta;
-    datos.ancho = imagenElegida.ancho;
-    datos.alto = imagenElegida.alto;
-    datos.color = imagenElegida.color;
+    // misma ruta al marcar una foto existente: así su link para compartir no cambia
+    const ruta = reemplazaRuta ? rutaRepo(anterior.src) : rutaNueva(titulo);
+    const publicada = reemplazaRuta && esPublicada(ruta);
+    if (publicada && !imagenElegida.aplicada) {
+      // publicada + "Sin marca": queda como estaba
+      imagenesNuevas.delete(ruta);
+      vistasPrevias.delete(ruta);
+      delete datos.marca;
+    } else {
+      imagenesNuevas.set(ruta, {
+        base64: imagenElegida.base64, miniatura: imagenElegida.miniatura,
+        origen: imagenElegida.origen, marca: imagenElegida.marca, aplicada: imagenElegida.aplicada,
+      });
+      vistasPrevias.set(ruta, imagenElegida.url);
+      datos.src = ruta;
+      datos.ancho = imagenElegida.ancho;
+      datos.alto = imagenElegida.alto;
+      datos.color = imagenElegida.color;
+      if (imagenElegida.aplicada) datos.marca = `${imagenElegida.aplicada.pos}-${imagenElegida.aplicada.color}`;
+      else delete datos.marca;
+      if (publicada) mensaje = `Poner marca de agua a "${titulo}"`;
+    }
   }
 
   if (editando >= 0) {
     fotos[editando] = datos;
-    cambios.push(`Editar foto "${titulo}"`);
   } else {
     fotos.unshift(datos);   // las nuevas aparecen primero en la galería
-    cambios.push(`Agregar foto "${titulo}"`);
   }
+  cambios.push(mensaje);
 
   $("dialogo").close();
   render();
@@ -531,13 +764,16 @@ async function agregarVarias() {
   for (const [n, archivo] of elegidos.entries()) {
     aviso(`Preparando ${n + 1} de ${elegidos.length}…`, false, true);
     try {
-      const imagen = await procesarImagen(archivo);
+      const imagen = await procesarImagen(archivo, MARCA_AUTO);
       const titulo = tituloDesdeArchivo(archivo.name);
       const ruta = rutaNueva(titulo || archivo.name.replace(/\.[^.]+$/, ""), nuevas.map(f => f.src));
-      imagenesNuevas.set(ruta, { base64: imagen.base64, miniatura: imagen.miniatura });
+      imagenesNuevas.set(ruta, { base64: imagen.base64, miniatura: imagen.miniatura,
+                                 origen: archivo, marca: imagen.marca, aplicada: imagen.aplicada });
       vistasPrevias.set(ruta, imagen.url);
-      nuevas.push({ src: ruta, titulo, especie: "", categoria: "Aves", lugar: "", fecha: "", descripcion: "",
-                    ancho: imagen.ancho, alto: imagen.alto, color: imagen.color });
+      const nueva = { src: ruta, titulo, especie: "", categoria: "Aves", lugar: "", fecha: "", descripcion: "",
+                      ancho: imagen.ancho, alto: imagen.alto, color: imagen.color };
+      if (imagen.aplicada) nueva.marca = `${imagen.aplicada.pos}-${imagen.aplicada.color}`;
+      nuevas.push(nueva);
       cambios.push(`Agregar foto "${titulo || archivo.name}"`);
     } catch {
       fallaron.push(archivo.name);
@@ -547,7 +783,7 @@ async function agregarVarias() {
   render();
   aviso(fallaron.length
     ? `Se agregaron ${nuevas.length}. No se pudieron leer: ${fallaron.join(", ")} (probá con JPG o PNG).`
-    : `Se agregaron ${nuevas.length} fotos. Completá sus datos con "Editar" y después tocá Publicar.`, fallaron.length > 0);
+    : `Se agregaron ${nuevas.length} fotos, con la marca de agua. Completá sus datos con "Editar" (ahí podés cambiar la marca) y después tocá Publicar.`, fallaron.length > 0);
 }
 
 /* ---------- Editor de "Sobre Milagros" ---------- */
@@ -659,6 +895,9 @@ $("perfil-archivo").addEventListener("change", alElegirPerfil);
 $("form-sobre").addEventListener("submit", guardarSobre);
 $("btn-cancelar").addEventListener("click", () => $("dialogo").close());
 $("archivo").addEventListener("change", alElegirArchivo);
+$("btn-poner-marca").addEventListener("click", ponerMarcaExistente);
+document.querySelectorAll('input[name="marca-pos"], input[name="marca-color"]')
+  .forEach(r => r.addEventListener("change", actualizarMarca));
 $("form-foto").addEventListener("submit", guardarFormulario);
 
 $("btn-descartar").addEventListener("click", () => {
@@ -666,6 +905,7 @@ $("btn-descartar").addEventListener("click", () => {
   fotos = structuredClone(fotosPublicadas);
   sitio = structuredClone(sitioPublicado);
   imagenesNuevas.clear();
+  vistasPrevias.clear();   // si no, las fotos marcadas sin publicar se seguirían viendo con marca
   cambios = [];
   render();
 });

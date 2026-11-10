@@ -48,6 +48,23 @@ y no necesitás saber nada de programación.
 > 💡 Si son muchas, publicá en tandas de 15-20: es más cómodo y si se corta
 > internet no perdés todo.
 
+## 💧 Marca de agua
+
+Cada foto que subís lleva tu firma (una línea fina y tu nombre), centrada arriba o abajo.
+Se agrega **solo a la copia que va a la web**: la foto que tenés en el celu o la compu no se toca.
+
+Al elegir una foto, debajo de la vista previa aparece **Marca de agua**:
+- **Automática / Arriba / Abajo**: en automática, el panel la pone donde hay menos detalle (cielo, fondo desenfocado). Si tapa algo, elegí la otra.
+- **Color automático / Clara / Oscura**: clara para fondos oscuros, oscura para fondos claros.
+- **Sin marca**: por si la foto ya trae la marca desde Lightroom.
+
+La vista previa cambia al instante, así ves cómo queda antes de guardar.
+Si subís varias juntas, todas llevan la marca automática; después la podés cambiar desde **Editar** (hasta que publiques).
+
+**Fotos que ya estaban publicadas sin marca:** tocá **Editar → Ponerle la marca de agua**. Una vez publicada con marca ya no se puede cambiar de lugar (para eso, volvé a elegir la foto original con **Cambiar foto**).
+
+Si querés poner la marca vos en Lightroom, los archivos están en la carpeta `admin/marca/` del sitio.
+
 ## 🔍 Buscar una foto
 Arriba de la lista hay un buscador: escribí parte del nombre, la especie,
 el lugar o la clase (no importan los acentos).

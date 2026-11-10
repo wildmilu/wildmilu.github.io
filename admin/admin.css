@@ -156,3 +156,18 @@ dialog h2 { font-family: var(--fuente-titulo); color: var(--verde-bosque); }
 .item--fantasma { opacity: .4; }
 .item--arrastrando { box-shadow: var(--sombra); }
 .falta { font-size: .7rem; color: var(--terracota); margin-left: .2rem; }
+
+/* ---------- Marca de agua ---------- */
+.marca { border: 1px solid var(--arena); border-radius: 12px; padding: .4rem .8rem .8rem; margin-top: 1rem; }
+.marca legend { font-size: .85rem; font-weight: 500; padding: 0 .3rem; }
+.segmentos { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.segmentos label { margin: 0; font-weight: 400; cursor: pointer; }
+.segmentos input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.segmentos span {
+  display: inline-block; padding: .35rem .8rem; border-radius: 999px; font-size: .85rem;
+  background: var(--arena); color: var(--carbon); transition: background .15s, color .15s;
+}
+.segmentos input:checked + span { background: var(--verde-bosque); color: #fff; }
+.segmentos input:focus-visible + span { outline: 2px solid var(--verde-hoja); outline-offset: 2px; }
+.segmentos.apagado { opacity: .4; pointer-events: none; }
+.marca small, #marca-ya { display: block; color: var(--gris-suave); margin-top: .5rem; }
