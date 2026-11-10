@@ -565,9 +565,12 @@ function abrirFormulario(i = -1) {
   $("dialogo").showModal();
 }
 
+/* "Automática" decide posición y color juntos; "Arriba"/"Abajo" muestran Clara/Oscura */
 function marcaDelForm() {
-  const valor = nombre => (document.querySelector(`input[name="${nombre}"]:checked`) || {}).value || "auto";
-  return { pos: valor("marca-pos"), color: valor("marca-color") };
+  const valor = nombre => (document.querySelector(`input[name="${nombre}"]:checked`) || {}).value;
+  const pos = valor("marca-pos") || "auto";
+  const manual = pos === "arriba" || pos === "abajo";
+  return { pos, color: manual ? valor("marca-color") || "clara" : "auto" };
 }
 
 function ponerMarcaEnForm(marca) {
@@ -575,25 +578,33 @@ function ponerMarcaEnForm(marca) {
     const radio = document.querySelector(`input[name="${nombre}"][value="${valor}"]`);
     if (radio) radio.checked = true;
   }
-  $("marca-colores").classList.toggle("apagado", marca.pos === "no");
+  $("marca-colores").hidden = !(marca.pos === "arriba" || marca.pos === "abajo");
 }
 
 /* Vuelve a armar la vista previa con la marca elegida */
-async function actualizarMarca() {
-  const marca = marcaDelForm();
-  $("marca-colores").classList.toggle("apagado", marca.pos === "no");
+async function actualizarMarca(evento) {
+  let marca = marcaDelForm();
+  const manual = marca.pos === "arriba" || marca.pos === "abajo";
+  $("marca-colores").hidden = !manual;
   if (!fuenteForm && !origenForm) return;
   const turno = ++turnoMarca;
   $("btn-guardar").disabled = true;
   $("marca-info").textContent = "Aplicando…";
   try {
     if (!fuenteForm) fuenteForm = await prepararFuente(origenForm);
+    if (turno !== turnoMarca) return;
+    // al pasar a Arriba/Abajo, arranca con el color que mejor se lee ahí
+    if (manual && evento && evento.target && evento.target.name === "marca-pos") {
+      const sugerido = fuenteForm.zonas ? resolverMarca(fuenteForm, { pos: marca.pos, color: "auto" }).color : "clara";
+      ponerMarcaEnForm({ pos: marca.pos, color: sugerido });
+      marca = marcaDelForm();
+    }
     const listo = await renderizar(fuenteForm, marca);
     if (turno !== turnoMarca) return;
     imagenElegida = listo;
     $("vista-previa").src = listo.url;
     $("vista-previa").hidden = false;
-    const automatico = listo.aplicada && (marca.pos === "auto" || marca.color === "auto");
+    const automatico = listo.aplicada && marca.pos === "auto";
     $("marca-info").textContent = !listo.aplicada
       ? (marca.pos === "no" ? "La foto se publica sin marca." : "No se pudo cargar la marca de agua: va sin marca.")
       : `Quedó ${textoMarca(listo.aplicada)}${automatico ? " (lo eligió el panel según la foto)" : ""}.`;

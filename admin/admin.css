@@ -169,5 +169,4 @@ dialog h2 { font-family: var(--fuente-titulo); color: var(--verde-bosque); }
 }
 .segmentos input:checked + span { background: var(--verde-bosque); color: #fff; }
 .segmentos input:focus-visible + span { outline: 2px solid var(--verde-hoja); outline-offset: 2px; }
-.segmentos.apagado { opacity: .4; pointer-events: none; }
 .marca small, #marca-ya { display: block; color: var(--gris-suave); margin-top: .5rem; }

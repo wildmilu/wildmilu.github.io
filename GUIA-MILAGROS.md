@@ -54,8 +54,8 @@ Cada foto que subís lleva tu firma (una línea fina y tu nombre), centrada arri
 Se agrega **solo a la copia que va a la web**: la foto que tenés en el celu o la compu no se toca.
 
 Al elegir una foto, debajo de la vista previa aparece **Marca de agua**:
-- **Automática / Arriba / Abajo**: en automática, el panel la pone donde hay menos detalle (cielo, fondo desenfocado). Si tapa algo, elegí la otra.
-- **Color automático / Clara / Oscura**: clara para fondos oscuros, oscura para fondos claros.
+- **Automática**: el panel elige todo solo: la pone donde hay menos detalle (cielo, fondo desenfocado) y del color que mejor se lee ahí.
+- **Arriba / Abajo**: si la automática tapa algo, elegí vos el lugar. Aparecen **Clara / Oscura** (ya viene marcada la que mejor se lee; clara para fondos oscuros, oscura para claros).
 - **Sin marca**: por si la foto ya trae la marca desde Lightroom.
 
 La vista previa cambia al instante, así ves cómo queda antes de guardar.
