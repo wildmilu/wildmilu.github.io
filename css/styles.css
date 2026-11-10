@@ -241,6 +241,10 @@ img { display: block; max-width: 100%; }
   padding: 1.6rem 1.5rem calc(2rem + env(safe-area-inset-bottom)); text-align: left;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4); animation: hoja-subir 0.3s cubic-bezier(0.22, 0.8, 0.24, 1);
 }
+.hoja__asa {   /* rayita de arriba: avisa que se puede bajar con el dedo */
+  position: absolute; top: 0.55rem; left: 50%; transform: translateX(-50%);
+  width: 2.6rem; height: 0.28rem; border-radius: 99px; background: rgba(247, 244, 236, 0.3);
+}
 .hoja__caja h3 { font-family: var(--fuente-titulo); font-size: 1.5rem; padding-right: 2.5rem; }
 .hoja__caja .esp { font-style: italic; opacity: 0.8; margin-top: 0.2rem; }
 .hoja__caja .lugar { font-size: 0.8rem; opacity: 0.6; margin-top: 0.35rem; }

@@ -346,6 +346,7 @@ async function ocultarLightbox() {
   if (!lightbox.classList.contains("abierto") || cerrando) return;
   cerrando = true;
   lbHoja.hidden = true;
+  limpiarHoja();
   const foto = fotosVisibles[indiceActual];
   let destino = foto && !sinMovimiento.matches ? miniaturaEnGaleria(foto) : null;
 
@@ -423,7 +424,7 @@ function mostrarFoto() {
   const foto = fotosVisibles[indiceActual];
   if (!foto) return;
   reiniciarZoom(false);
-  cerrarHoja();
+  cerrarHoja(false);
   // Primero la miniatura (ya está en caché, aparece al instante)
   // y en cuanto baja la foto grande, se reemplaza.
   const grande = normalizarRuta(foto.src);
@@ -503,15 +504,86 @@ function abrirHoja() {
   focoHoja = document.activeElement;
   if (usandoTeclado) document.getElementById("lb-hoja-cerrar").focus({ preventScroll: true });
 }
-function cerrarHoja() {
-  if (lbHoja.hidden) return;
+const hojaCaja = lbHoja.querySelector(".hoja__caja");
+let cerrandoHoja = false;
+
+function limpiarHoja() {
+  hojaCaja.style.transition = hojaCaja.style.transform = "";
+  lbHoja.style.transition = lbHoja.style.backgroundColor = "";
+}
+
+// Baja deslizándose (o se va al instante, si es por cambiar de foto)
+async function cerrarHoja(animado = true) {
+  if (lbHoja.hidden || cerrandoHoja) return;
+  if (animado && !sinMovimiento.matches) {
+    cerrandoHoja = true;
+    hojaCaja.style.transition = `transform 260ms ${CURVA}`;
+    hojaCaja.style.transform = "translateY(100%)";
+    lbHoja.style.transition = "background-color 260ms ease";
+    lbHoja.style.backgroundColor = "rgba(20, 18, 15, 0)";
+    await pausa(260);
+    cerrandoHoja = false;
+  }
   lbHoja.hidden = true;
+  limpiarHoja();
   if (usandoTeclado && focoHoja && lightbox.contains(focoHoja)) focoHoja.focus({ preventScroll: true });
 }
 const hojaAbierta = () => !lbHoja.hidden;
 lbMas.addEventListener("click", abrirHoja);
-document.getElementById("lb-hoja-cerrar").addEventListener("click", cerrarHoja);
+document.getElementById("lb-hoja-cerrar").addEventListener("click", () => cerrarHoja());
 lbHoja.addEventListener("click", e => { if (e.target === lbHoja) cerrarHoja(); });   // tocar afuera la cierra
+
+/* Deslizar la hoja hacia abajo para cerrarla (si el texto está arriba de todo;
+   si no, el dedo scrollea el texto como siempre) */
+let arrastreHoja = null;
+hojaCaja.addEventListener("touchstart", e => {
+  arrastreHoja = e.touches.length === 1 && !cerrandoHoja && hojaCaja.scrollTop <= 0
+    ? { y0: e.touches[0].clientY, yPrevio: e.touches[0].clientY, t: e.timeStamp, v: 0, dy: 0, activo: false }
+    : null;
+}, { passive: true });
+
+hojaCaja.addEventListener("touchmove", e => {
+  const a = arrastreHoja;
+  if (!a) return;
+  if (e.touches.length !== 1) { arrastreHoja = null; volverHoja(); return; }
+  const y = e.touches[0].clientY;
+  if (!a.activo) {
+    if (y < a.y0) { arrastreHoja = null; return; }    // hacia arriba: scroll normal del texto
+    if (e.cancelable) e.preventDefault();             // hacia abajo: que no rebote el texto
+    if (y - a.y0 < 4) return;
+    a.activo = true;
+    a.y0 = y;
+    hojaCaja.style.transition = lbHoja.style.transition = "none";
+  }
+  if (e.cancelable) e.preventDefault();
+  a.dy = Math.max(0, y - a.y0);
+  const dt = e.timeStamp - a.t;
+  if (dt > 0) a.v = 0.8 * ((y - a.yPrevio) / dt) + 0.2 * a.v;
+  a.yPrevio = y;
+  a.t = e.timeStamp;
+  hojaCaja.style.transform = `translateY(${a.dy}px)`;
+  const resto = 1 - Math.min(1, a.dy / hojaCaja.offsetHeight);
+  lbHoja.style.backgroundColor = `rgba(20, 18, 15, ${(0.55 * resto).toFixed(3)})`;
+}, { passive: false });
+
+function volverHoja() {
+  hojaCaja.style.transition = `transform 250ms ${CURVA}`;
+  lbHoja.style.transition = "background-color 250ms ease";
+  hojaCaja.style.transform = "";
+  lbHoja.style.backgroundColor = "";
+  setTimeout(() => { if (!arrastreHoja && !cerrandoHoja) limpiarHoja(); }, 260);
+}
+
+function soltarHoja() {
+  const a = arrastreHoja;
+  arrastreHoja = null;
+  if (!a || !a.activo) return;
+  // se cierra si bajó bastante, o si fue un deslizón rápido hacia abajo
+  if (a.dy > 100 || (a.v > 0.4 && a.dy > 20)) cerrarHoja();
+  else volverHoja();
+}
+hojaCaja.addEventListener("touchend", soltarHoja, { passive: true });
+hojaCaja.addEventListener("touchcancel", soltarHoja, { passive: true });
 
 lbCerrar.addEventListener("click", cerrarLightbox);
 document.getElementById("lb-prev").addEventListener("click", () => cambiar(-1));

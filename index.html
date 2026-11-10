@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=6">
+  <link rel="stylesheet" href="css/styles.css?v=7">
   <!-- Portada: en el celular baja una versión recortada y más liviana -->
   <link rel="preload" as="image" href="images/portada-movil.jpg" media="(max-aspect-ratio: 1/1)">
   <link rel="preload" as="image" href="images/picaflor-cometa.jpg" media="(min-aspect-ratio: 1/1)">
@@ -147,6 +147,7 @@
     <!-- Texto completo de la foto: sube desde abajo, se scrollea si es largo -->
     <div class="lightbox__hoja" id="lb-hoja" hidden>
       <div class="hoja__caja" role="dialog" aria-modal="true" aria-labelledby="lb-hoja-titulo">
+        <span class="hoja__asa" aria-hidden="true"></span>
         <button class="hoja__cerrar" id="lb-hoja-cerrar" type="button" aria-label="Cerrar texto">&times;</button>
         <h3 id="lb-hoja-titulo"></h3>
         <p class="esp" id="lb-hoja-especie"></p>
@@ -165,7 +166,7 @@
   <!-- ⚠️ IMPORTANTE: solo main.js.
        NO debe haber ninguna línea con "js/data.js": ese era el archivo
        de la versión 1. Ahora las fotos se leen desde fotos.json. -->
-  <script src="js/main.js?v=12"></script>
+  <script src="js/main.js?v=13"></script>
 
   <!-- Estadísticas de visitas (GoatCounter: gratis, sin cookies) -->
   <script data-goatcounter="https://wildmilu.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
