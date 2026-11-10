@@ -1,6 +1,19 @@
 {
   "fotos": [
     {
+      "src": "images/churrinche.jpg",
+      "titulo": "Churrinche",
+      "especie": "𝘗𝘺𝘳𝘰𝘤𝘦𝘱𝘩𝘢𝘭𝘶𝘴 𝘳𝘶𝘣𝘪𝘯𝘶𝘴",
+      "categoria": "Aves",
+      "lugar": "Anisacate, Cordoba",
+      "fecha": "Octubre 2026",
+      "descripcion": "Llega la primavera, y con ella llega el Churrinche (𝘗𝘺𝘳𝘰𝘤𝘦𝘱𝘩𝘢𝘭𝘶𝘴 𝘳𝘶𝘣𝘪𝘯𝘶𝘴) después de una migración desde el norte del continente americano un tanto larga (sobre todo para un ave bastante pequeña).\n❤️ En Argentina nos toca ver (por suerte) su temporada de cría, en la cual el macho adquiere ese rojo brillante que enamora.",
+      "ancho": 2000,
+      "alto": 1370,
+      "color": "#8c8c8c",
+      "marca": "arriba-clara"
+    },
+    {
       "src": "images/benteveo.jpg",
       "titulo": "Benteveo",
       "especie": "Pitangus sulphuratus",
