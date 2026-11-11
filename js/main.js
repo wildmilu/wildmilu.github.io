@@ -37,7 +37,15 @@ function rutaMiniatura(src) {
 
 // Identificador de cada foto para su link propio: images/benteveo.jpg → "benteveo"
 function idFoto(foto) {
+  if (foto.id) return String(foto.id);   // fijo: el link no cambia aunque se cambie la portada
   return normalizarRuta(foto.src).split("/").pop().replace(/\.[^.]+$/, "");
+}
+
+// Cada entrada de fotos.json es una "ficha" (un posteo): la foto principal
+// (portada) más, opcionalmente, otras fotos del mismo animal en "extras".
+function fotosDe(ficha) {
+  if (!ficha) return [];
+  return [ficha, ...(Array.isArray(ficha.extras) ? ficha.extras : [])].filter(f => f && f.src);
 }
 
 /* ---------- 0. Cargar los datos ---------- */
@@ -143,7 +151,8 @@ function crearTarjeta(foto, indice) {
   card.className = "card";
   card.dataset.id = idFoto(foto);
   if (foto.color) card.style.backgroundColor = foto.color;   // color de la foto mientras carga
-  card.setAttribute("aria-label", `Ver foto: ${foto.titulo || "sin título"}`);
+  const cantidad = fotosDe(foto).length;
+  card.setAttribute("aria-label", `Ver foto: ${foto.titulo || "sin título"}${cantidad > 1 ? ` (${cantidad} fotos)` : ""}`);
 
   const img = document.createElement("img");
   img.src = rutaMiniatura(foto.src);
@@ -175,6 +184,14 @@ function crearTarjeta(foto, indice) {
   info.append(titulo, especie);
 
   card.append(img, info);
+  if (cantidad > 1) {   // como en Instagram: un iconito avisa que hay más fotos
+    const varias = document.createElement("span");
+    varias.className = "card__varias";
+    varias.setAttribute("aria-hidden", "true");
+    varias.innerHTML = '<svg viewBox="0 0 24 24"><rect x="7" y="3" width="14" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 8v10.5A2.5 2.5 0 0 0 5.5 21H16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    varias.append(String(cantidad));
+    card.appendChild(varias);
+  }
   card.addEventListener("click", () => abrirLightbox(indice));
   if (img.complete && img.naturalWidth) img.classList.add("lista");   // ya estaba en caché
   return card;
@@ -218,6 +235,7 @@ const lbCompartir = document.getElementById("lb-compartir");
 const lbContenido = document.querySelector(".lightbox__contenido");
 const lbMeta      = document.querySelector(".lightbox__meta");
 const lbVecina    = document.getElementById("lb-vecina");
+const lbPuntos    = document.getElementById("lb-puntos");
 const lbLugar     = document.getElementById("lb-lugar");
 const lbMas       = document.getElementById("lb-mas");
 const lbHoja      = document.getElementById("lb-hoja");
@@ -231,7 +249,10 @@ const pausa = ms => new Promise(r => setTimeout(r, ms));
 // el historial), el navegador no la pisa y la foto vuelve a SU tarjeta.
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
-let indiceActual = 0;
+let indiceActual = 0;          // qué ficha (animal) se está viendo
+let subActual = 0;            // qué foto de esa ficha
+const fichaActual = () => fotosVisibles[indiceActual];
+const fotoActual = () => { const fs = fotosDe(fichaActual()); return fs[Math.min(subActual, fs.length - 1)]; };
 let focoAnterior = null;      // para devolver el foco a la tarjeta al cerrar (teclado)
 let entradaPropia = false;    // true si el visor agregó una entrada al historial
 let cerrando = false;         // animación de cierre en curso
@@ -263,9 +284,16 @@ function tamanoEnVisor(foto) {
   return { ancho, alto };
 }
 
+// Todas las fotos de una ficha comparten el mismo "marco" (el alto de la más alta):
+// así, al pasar entre fotos del mismo animal, el texto de abajo no se mueve.
+function altoCaja(ficha) {
+  return Math.max(...fotosDe(ficha).map(f => tamanoEnVisor(f).alto));
+}
+
 // Rectángulo en pantalla que ocuparía la foto (centrada junto con sus textos)
-function rectEnVisor(foto) {
+function rectEnVisor(foto, ficha) {
   const { ancho, alto } = tamanoEnVisor(foto);
+  const caja = Math.max(alto, altoCaja(ficha));
   const estilo = getComputedStyle(lightbox);
   const arriba = parseFloat(estilo.paddingTop), abajo = parseFloat(estilo.paddingBottom);
   const separacion = parseFloat(getComputedStyle(lbContenido).rowGap) || 0;
@@ -273,17 +301,19 @@ function rectEnVisor(foto) {
   const marco = lbContenido.getBoundingClientRect();
   return {
     left: marco.left + (marco.width - ancho) / 2,
-    top: arriba + (disponible - (alto + separacion + lbMeta.offsetHeight)) / 2,
+    top: arriba + (disponible - (caja + separacion + lbMeta.offsetHeight)) / 2 + (caja - alto) / 2,
     width: ancho, height: alto,
   };
 }
 
 function ajustarTamano() {
-  const foto = fotosVisibles[indiceActual];
+  const foto = fotoActual();
   if (!foto) return;
   const { ancho, alto } = tamanoEnVisor(foto);
+  const margen = (Math.max(alto, altoCaja(fichaActual())) - alto) / 2;
   lbImg.style.width = ancho + "px";
   lbImg.style.height = alto + "px";
+  lbImg.style.marginTop = lbImg.style.marginBottom = margen + "px";
 }
 window.addEventListener("resize", () => { if (visorAbierto()) { reiniciarZoom(false); ajustarTamano(); } });
 
@@ -310,8 +340,9 @@ function mostrarMiniatura() {
 }
 
 /* ---- Abrir: la foto "crece" desde su miniatura ---- */
-function abrirLightbox(indice, { desdeLink = false } = {}) {
+function abrirLightbox(indice, { desdeLink = false, sub = 0 } = {}) {
   indiceActual = indice;
+  subActual = Math.max(0, Math.min(sub, fotosDe(fotosVisibles[indice]).length - 1));
   focoAnterior = document.activeElement;
   cerrando = false;
   lightbox.classList.add("abierto", "transicion");      // fondo y textos arrancan invisibles
@@ -320,12 +351,12 @@ function abrirLightbox(indice, { desdeLink = false } = {}) {
   // Link propio de la foto (#foto=benteveo). Se agrega al historial para que
   // el botón "atrás" del celular cierre el visor en vez de salir del sitio.
   if (!desdeLink) {
-    history.pushState({ visor: true }, "", "#foto=" + idFoto(fotosVisibles[indice]));
+    history.pushState({ visor: true }, "", direccionFoto());
     entradaPropia = true;
   }
   if (usandoTeclado) lbCerrar.focus({ preventScroll: true });
 
-  const origen = !desdeLink && !sinMovimiento.matches && miniaturaEnGaleria(fotosVisibles[indice]);
+  const origen = !desdeLink && !sinMovimiento.matches && subActual === 0 && miniaturaEnGaleria(fotosVisibles[indice]);
   if (origen) {
     const desde = origen.getBoundingClientRect();
     const hasta = lbImg.getBoundingClientRect();
@@ -348,7 +379,8 @@ async function ocultarLightbox() {
   lbHoja.hidden = true;
   limpiarHoja();
   const foto = fotosVisibles[indiceActual];
-  let destino = foto && !sinMovimiento.matches ? miniaturaEnGaleria(foto) : null;
+  // vuela a su tarjeta si se está viendo la portada; si es otra foto del animal, se desvanece
+  let destino = foto && subActual === 0 && !sinMovimiento.matches ? miniaturaEnGaleria(foto) : null;
 
   if (destino) {
     // si la foto quedó fuera de pantalla (se pasaron varias), se acomoda la galería
@@ -416,12 +448,13 @@ function abrirDesdeLink() {
   const id = idDesdeDireccion();
   if (!id || !FOTOS.length) return;
   const i = fotosVisibles.findIndex(f => idFoto(f) === id);
-  if (i >= 0) abrirLightbox(i, { desdeLink: true });
+  const n = Number((location.hash.match(/[#&]n=(\d+)/) || [])[1]) || 1;   // #foto=frailecillo&n=3
+  if (i >= 0) abrirLightbox(i, { desdeLink: true, sub: n - 1 });
   else history.replaceState(null, "", location.pathname + location.search);  // link viejo: foto borrada
 }
 
 function mostrarFoto() {
-  const foto = fotosVisibles[indiceActual];
+  const ficha = fichaActual(), foto = fotoActual();
   if (!foto) return;
   reiniciarZoom(false);
   cerrarHoja(false);
@@ -429,16 +462,18 @@ function mostrarFoto() {
   // y en cuanto baja la foto grande, se reemplaza.
   const grande = normalizarRuta(foto.src);
   const completa = new Image();
-  completa.onload = () => { if (fotosVisibles[indiceActual] === foto) lbImg.src = grande; };
+  completa.onload = () => { if (fotoActual() === foto) lbImg.src = grande; };
   completa.src = grande;
   lbImg.src = completa.complete ? grande : rutaMiniatura(foto.src);
-  lbImg.alt = [foto.titulo, foto.especie].filter(Boolean).join(" — ");
-  lbTitulo.textContent  = foto.titulo || "";
-  lbEspecie.textContent = foto.especie || "";
-  lbLugar.textContent = [foto.lugar, foto.fecha].filter(Boolean).join(" · ");
+  const total = fotosDe(ficha).length;
+  lbImg.alt = [ficha.titulo, ficha.especie].filter(Boolean).join(" — ") + (total > 1 ? ` (foto ${subActual + 1} de ${total})` : "");
+  lbTitulo.textContent  = ficha.titulo || "";
+  lbEspecie.textContent = ficha.especie || "";
+  lbLugar.textContent = [ficha.lugar, ficha.fecha].filter(Boolean).join(" · ");
   lbLugar.hidden = !lbLugar.textContent;
-  lbDetalle.textContent = foto.descripcion || "";
+  lbDetalle.textContent = ficha.descripcion || "";
   lbDetalle.hidden = !lbDetalle.textContent;
+  dibujarPuntos();
   // "Leer más" solo si la descripción no entra en las líneas visibles
   lbMas.hidden = lbDetalle.hidden || lbDetalle.scrollHeight <= lbDetalle.clientHeight + 1;
   lbContador.textContent = `${indiceActual + 1} / ${fotosVisibles.length}`;
@@ -446,17 +481,42 @@ function mostrarFoto() {
   precargarVecinas();
 }
 
+/* Puntitos debajo de la foto cuando el animal tiene varias (se pueden tocar) */
+function dibujarPuntos() {
+  const total = fotosDe(fichaActual()).length;
+  lbPuntos.hidden = total < 2;
+  if (total < 2) { lbPuntos.replaceChildren(); return; }
+  if (lbPuntos.children.length !== total) {
+    lbPuntos.replaceChildren(...Array.from({ length: total }, (_, k) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "lightbox__punto";
+      b.setAttribute("aria-label", `Foto ${k + 1} de ${total}`);
+      b.addEventListener("click", () => irAFoto(k));
+      return b;
+    }));
+  }
+  [...lbPuntos.children].forEach((b, k) => {
+    b.classList.toggle("activo", k === subActual);
+    b.setAttribute("aria-current", k === subActual ? "true" : "false");
+  });
+}
+
+// Link de lo que se está viendo: #foto=frailecillo (portada) o #foto=frailecillo&n=3
+function direccionFoto() {
+  return "#foto=" + idFoto(fichaActual()) + (subActual > 0 ? "&n=" + (subActual + 1) : "");
+}
+
 // Al pasar a otra foto, la dirección muestra la nueva (sin agregar entradas al historial)
 function actualizarDireccion() {
-  history.replaceState(history.state, "", "#foto=" + idFoto(fotosVisibles[indiceActual]));
+  history.replaceState(history.state, "", direccionFoto());
 }
 
 /* Baja por adelantado la foto siguiente y la anterior: al deslizar aparecen al instante */
 const precargadas = new Set();
 function precargarVecinas() {
-  const n = fotosVisibles.length;
   [1, -1].forEach(d => {
-    const vecina = fotosVisibles[(indiceActual + d + n) % n];
+    const vecina = fotoEn(posicionVecina(d));
     const ruta = vecina && normalizarRuta(vecina.src);
     if (ruta && !precargadas.has(ruta)) { precargadas.add(ruta); new Image().src = ruta; }
   });
@@ -475,7 +535,8 @@ function mostrarAviso(texto) {
 lbCompartir.addEventListener("click", async () => {
   const foto = fotosVisibles[indiceActual];
   // Página propia de la foto: al compartirla, WhatsApp/Instagram muestran ESA foto
-  const url = location.origin + location.pathname.replace(/[^/]*$/, "") + "foto/" + idFoto(foto) + "/";
+  const url = location.origin + location.pathname.replace(/[^/]*$/, "") + "foto/" + idFoto(foto) + "/"
+    + (subActual > 0 ? "?n=" + (subActual + 1) : "");   // abre en la misma foto del carrusel
   const titulo = `${foto.titulo} · WildMilu`;
   if (navigator.share) {
     try { await navigator.share({ title: titulo, url }); } catch { /* canceló */ }
@@ -702,14 +763,28 @@ lightbox.addEventListener("wheel", e => {
 const SEPARACION = 24;                       // espacio entre una foto y la otra
 let ladoVecina = 0;                          // 1 = la siguiente (a la derecha), -1 = la anterior
 
-const indiceVecino = dir => (indiceActual + dir + fotosVisibles.length) % fotosVisibles.length;
+let posVecina = null;                         // { indice, sub, misma } de la foto que entra
+
+// La foto que sigue (o la anterior): primero las del mismo animal y, al
+// terminarlas, el animal siguiente (como un carrusel de Instagram).
+function posicionVecina(dir) {
+  const s = subActual + dir;
+  if (s >= 0 && s < fotosDe(fichaActual()).length) return { indice: indiceActual, sub: s, misma: true };
+  const n = fotosVisibles.length;
+  const indice = (indiceActual + dir + n) % n;
+  return { indice, sub: dir > 0 ? 0 : fotosDe(fotosVisibles[indice]).length - 1, misma: false };
+}
+const fotoEn = p => fotosDe(fotosVisibles[p.indice])[p.sub];
+const hayVecinas = () => fotosVisibles.length > 1 || fotosDe(fichaActual()).length > 1;
+// Dentro del mismo animal se corre solo la foto (el texto queda quieto); entre animales, todo
+const movil = () => (posVecina && posVecina.misma ? lbImg : lbContenido);
 const recorrido = () => window.innerWidth + SEPARACION;
 
 // Ubica la foto vecina exactamente donde va a quedar cuando pase a ser la actual
 // (así al terminar la animación no hay ningún salto, aunque cambie la proporción)
-function prepararVecina(dir) {
-  const foto = fotosVisibles[indiceVecino(dir)];
-  const r = rectEnVisor(foto);
+function prepararVecina(dir, pos = posicionVecina(dir)) {
+  const foto = fotoEn(pos);
+  const r = rectEnVisor(foto, fotosVisibles[pos.indice]);
   const grande = normalizarRuta(foto.src);
   lbVecina.src = precargadas.has(grande) ? grande : rutaMiniatura(foto.src);
   Object.assign(lbVecina.style, {
@@ -720,14 +795,18 @@ function prepararVecina(dir) {
   });
   lbVecina.hidden = false;
   ladoVecina = dir;
+  posVecina = pos;
+  // si al arrastrar se cambia de sentido, lo que se movía antes vuelve a su lugar
+  for (const el of [lbImg, lbContenido]) if (el !== movil()) { el.style.transition = "none"; el.style.transform = ""; }
 }
 
 // Mueve las dos fotos según cuánto se arrastró (dx negativo = hacia la izquierda)
 function arrastrarHorizontal(dx) {
   const dir = dx < 0 ? 1 : -1;
   if (dir !== ladoVecina) prepararVecina(dir);
-  lbContenido.style.transition = "none";
-  lbContenido.style.transform = `translateX(${dx}px)`;
+  const el = movil();
+  el.style.transition = "none";
+  el.style.transform = `translateX(${dx}px)`;
   lbVecina.style.transform = `translateX(${dx + dir * recorrido()}px)`;
 }
 
@@ -739,19 +818,24 @@ function animar(el, transform) {
 // Termina el pase: la actual sale, la vecina queda en el centro y pasa a ser la actual
 async function completarPase(dir) {
   animando = true;
-  animar(lbContenido, `translateX(${-dir * recorrido()}px)`);
+  const pos = posVecina, el = movil();
+  animar(el, `translateX(${-dir * recorrido()}px)`);
   animar(lbVecina, "translateX(0px)");
   await pausa(DURACION);
   if (!visorAbierto()) { animando = false; return; }
-  indiceActual = indiceVecino(dir);
+  indiceActual = pos.indice;
+  subActual = pos.sub;
+  el.style.visibility = "hidden";                    // que no se vea la foto vieja un instante
   mostrarFoto();
   actualizarDireccion();
-  lbContenido.style.transition = "none";
-  lbContenido.style.transform = "";
-  lbContenido.classList.add("entrando");             // el texto aparece suave
+  el.style.transition = "none";
+  el.style.transform = "";
+  if (!pos.misma) lbContenido.classList.add("entrando");   // otro animal: el texto aparece suave
   try { await lbImg.decode(); } catch { /* si falla, igual seguimos */ }
+  el.style.visibility = "";
   lbVecina.hidden = true;                            // recién ahora: sin parpadeo
   ladoVecina = 0;
+  posVecina = null;
   requestAnimationFrame(() => lbContenido.classList.remove("entrando"));
   animando = false;
 }
@@ -759,25 +843,32 @@ async function completarPase(dir) {
 // No llegó a pasar: todo vuelve a su lugar
 function cancelarPase() {
   if (!ladoVecina) return;
-  animar(lbContenido, "translateX(0px)");
+  animar(movil(), "translateX(0px)");
   animar(lbVecina, `translateX(${ladoVecina * recorrido()}px)`);
   const lado = ladoVecina;
-  setTimeout(() => { if (ladoVecina === lado && !animando) { lbVecina.hidden = true; ladoVecina = 0; } }, DURACION);
+  setTimeout(() => { if (ladoVecina === lado && !animando) { lbVecina.hidden = true; ladoVecina = 0; posVecina = null; } }, DURACION);
 }
 
 // Flechas y teclado
-function cambiar(dir) {
-  if (animando || cerrando || fotosVisibles.length < 2) return;
+function cambiar(dir, pos = posicionVecina(dir)) {
+  if (animando || cerrando || !hayVecinas()) return;
   reiniciarZoom(false);
   if (sinMovimiento.matches) {                      // accesibilidad: sin animación
-    indiceActual = indiceVecino(dir);
+    indiceActual = pos.indice;
+    subActual = pos.sub;
     mostrarFoto();
     actualizarDireccion();
     return;
   }
-  prepararVecina(dir);
+  prepararVecina(dir, pos);
   lbVecina.getBoundingClientRect();                 // fija la posición inicial antes de animar
   completarPase(dir);
+}
+
+// Tocar un puntito: va directo a esa foto del animal
+function irAFoto(k) {
+  if (k === subActual) return;
+  cambiar(k > subActual ? 1 : -1, { indice: indiceActual, sub: k, misma: true });
 }
 
 /* ---------- Gestos con el dedo ----------
@@ -858,7 +949,7 @@ lightbox.addEventListener("touchmove", e => {
   if (direccion === "vertical") {
     bajada = Math.max(0, dy);                         // solo hacia abajo
     moverVisor(bajada, false);
-  } else if (direccion === "horizontal" && fotosVisibles.length > 1) {
+  } else if (direccion === "horizontal" && hayVecinas()) {
     deslizado = dx;
     arrastrarHorizontal(dx);
     const dt = e.timeStamp - ultimoT;

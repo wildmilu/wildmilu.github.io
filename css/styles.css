@@ -177,6 +177,16 @@ img { display: block; max-width: 100%; }
 .card__titulo { font-family: var(--fuente-titulo); font-size: 1.2rem; }
 .card__especie { font-size: 0.8rem; font-style: italic; opacity: 0.85; }
 
+/* Varias fotos del mismo animal: iconito en la tarjeta (como en Instagram) */
+.card__varias {
+  position: absolute; top: 0.6rem; right: 0.6rem; z-index: 2;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.2rem 0.45rem; border-radius: 999px;
+  background: rgba(20, 18, 15, 0.45); color: #fff; font-size: 0.75rem; font-weight: 500; line-height: 1;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); pointer-events: none;
+}
+.card__varias svg { width: 0.85rem; height: 0.85rem; }
+
 /* ---------- LIGHTBOX ---------- */
 .lightbox {
   position: fixed; inset: 0; z-index: 100; display: none;
@@ -205,6 +215,18 @@ img { display: block; max-width: 100%; }
 .lightbox__meta { color: var(--crema); }
 .lightbox__meta h3 { font-family: var(--fuente-titulo); font-size: 1.8rem; margin-bottom: 0.25rem; }
 .lightbox__meta .esp { font-style: italic; opacity: 0.8; }
+/* Puntitos del carrusel (fotos del mismo animal) */
+.lightbox__puntos { display: flex; justify-content: center; gap: 0.15rem; margin: -0.35rem 0 0.55rem; }
+.lightbox__puntos[hidden] { display: none; }
+.lightbox__punto {
+  width: 1.1rem; height: 1.1rem; padding: 0; border: none; background: none; cursor: pointer;
+  display: grid; place-items: center;
+}
+.lightbox__punto::before {
+  content: ""; width: 0.42rem; height: 0.42rem; border-radius: 50%;
+  background: var(--crema); opacity: 0.35; transition: opacity 0.2s, transform 0.2s;
+}
+.lightbox__punto.activo::before { opacity: 0.95; transform: scale(1.25); }
 .lightbox__meta .lugar { font-size: 0.8rem; margin-top: 0.35rem; opacity: 0.6; letter-spacing: 0.3px; }
 /* La descripción se corta en pocas líneas: la foto y los botones siempre entran */
 .lightbox__meta .detalle {
