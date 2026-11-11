@@ -210,16 +210,39 @@
     },
     {
       "src": "images/vaca-highland.jpg",
+      "ancho": 1600,
+      "alto": 1106,
+      "color": "#b19470",
+      "marca": "arriba-oscura",
       "titulo": "Vaca Highland",
       "especie": "Bos taurus taurus",
       "categoria": "Mamíferos",
       "lugar": "Edimburgo, Escocia",
       "fecha": "Julio 2026",
       "descripcion": "Por si no lo notaron, las últimas semanas estuve al otro lado del charco, así que se vienen algunas semanas de bichos no Argentinos.\nAprovecho también para cortar con tantas aves 😂\nHoy toca la famosa vaca de las Highlands de Escocia (o vacas peludas : \"Hairy coos\") 𝘉𝘰𝘴 𝘵𝘢𝘶𝘳𝘶𝘴 𝘵𝘢𝘶𝘳𝘶𝘴\nSon una de las razas de ganado más antiguas del mundo, originarias del siglo 6; y viven alrededor de 20 años.\nEsos cuernazos que tienen, además de ser útiles para alejar depredadores, los ayudan a palear nieve en el invierno para buscar comida.\nSu pelo -lógicamente- es otra adaptación para los inviernos helados de las tierras altas de Escocia.\nSe pasan aproximadamente 8 horas al día comiendo un total de 70 kg de pasto.",
-      "ancho": 1600,
-      "alto": 1106,
-      "color": "#b19470",
-      "marca": "arriba-oscura"
+      "extras": [
+        {
+          "src": "images/vaca-highland-2.jpg",
+          "ancho": 2000,
+          "alto": 1324,
+          "color": "#e3a257",
+          "marca": "arriba-clara"
+        },
+        {
+          "src": "images/vaca-highland-3.jpg",
+          "ancho": 2000,
+          "alto": 1333,
+          "color": "#2c1a0d",
+          "marca": "arriba-oscura"
+        },
+        {
+          "src": "images/vaca-highland-4.jpg",
+          "ancho": 2000,
+          "alto": 1507,
+          "color": "#654a35",
+          "marca": "arriba-oscura"
+        }
+      ]
     },
     {
       "src": "images/chingolo1-1-de-1.jpg",
