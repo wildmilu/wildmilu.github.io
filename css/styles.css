@@ -115,6 +115,14 @@ img { display: block; max-width: 100%; }
   max-width: 560px; margin: 1.25rem auto 2rem;
   font-size: 1.05rem; font-weight: 300;
 }
+/* Cita de David Attenborough */
+.hero__cita { max-width: 640px; margin: 1.25rem auto 2rem; }
+.hero__cita p { font-size: 1.05rem; font-weight: 300; font-style: italic; line-height: 1.6; }
+.hero__cita cite {
+  display: block; margin-top: 0.7rem; font-style: normal;
+  font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase; opacity: 0.85;
+}
+@media (max-width: 560px) { .hero__cita p { font-size: 0.95rem; } }
 .hero__btn {
   display: inline-block; background: var(--terracota); color: #fff;
   padding: 0.85rem 2rem; border-radius: 50px;

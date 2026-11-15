@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=8">
+  <link rel="stylesheet" href="css/styles.css?v=18">
   <!-- Portada: en el celular baja una versión recortada y más liviana -->
   <link rel="preload" as="image" href="images/portada-movil.jpg" media="(max-aspect-ratio: 1/1)">
   <link rel="preload" as="image" href="images/picaflor-cometa.jpg" media="(min-aspect-ratio: 1/1)">
@@ -69,10 +69,12 @@
   <header class="hero">
     <p class="hero__kicker">Fotografía de naturaleza</p>
     <h1 class="hero__title">Wild<span>Milu</span></h1>
-    <p class="hero__subtitle">
-      La vida silvestre vista por los ojos de Milagros.
-      Cada foto, un instante de paciencia, luz y naturaleza.
-    </p>
+    <blockquote class="hero__cita" lang="en">
+      <p>“It seems to me that the natural world is the greatest source of excitement;
+      the greatest source of visual beauty; the greatest source of intellectual interest.
+      It is the greatest source of so much in life that makes life worth living.”</p>
+      <cite>— David Attenborough</cite>
+    </blockquote>
     <a href="#galeria-sec" class="hero__btn">Ver la galería</a>
   </header>
 
@@ -89,7 +91,7 @@
     <div class="sobre__grid">
       <img class="sobre__foto" id="sobre-foto" src="images/Perfil.jpeg" alt="Milagros con su cámara">
       <div class="sobre__texto">
-        <h2>Sobre Milagros</h2>
+        <h2>Sobre mí</h2>
         <!-- El texto se edita desde el panel (sitio.json); este es el de respaldo -->
         <div id="sobre-parrafos">
         <p>
@@ -104,7 +106,7 @@
         </div>
         <a class="sobre__ig" href="https://www.instagram.com/wildmilu/" target="_blank" rel="noopener">
           <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg>
-          Seguila en Instagram
+          Seguime en Instagram
         </a>
       </div>
     </div>
