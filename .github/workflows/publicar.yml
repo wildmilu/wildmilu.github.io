@@ -39,8 +39,16 @@ jobs:
         with:
           ref: dev
           path: prueba
-      - name: Instalar Pillow (para miniaturas faltantes)
+      - name: Instalar Pillow (miniaturas y versiones WebP)
         run: pip install --quiet pillow
+      # Las versiones WebP de cada foto se guardan entre publicaciones: solo se
+      # arman las de fotos nuevas (si no, cada publicación tardaría ~30 s más)
+      - name: Recuperar versiones WebP ya hechas
+        uses: actions/cache@v4
+        with:
+          path: .cache-variantes
+          key: variantes-${{ github.run_id }}
+          restore-keys: variantes-
       - name: Armar el sitio real
         run: python3 real/scripts/generar.py --salida ../_site
       - name: Armar el sitio de prueba

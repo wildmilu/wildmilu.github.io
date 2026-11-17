@@ -23,11 +23,10 @@
   }
   </script>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=21">
+  <link rel="preload" href="fonts/PlayfairDisplay.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Poppins-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/styles.css?v=22">
   <!-- Portada: en el celular baja una versión recortada y más liviana -->
   <link rel="preload" as="image" href="images/portada-movil.jpg" media="(max-aspect-ratio: 1/1)">
   <link rel="preload" as="image" href="images/picaflor-cometa.jpg" media="(min-aspect-ratio: 1/1)">
@@ -79,6 +78,7 @@
   </header>
 
   <!-- ===================== GALERÍA ===================== -->
+  <main id="principal">
   <section class="section" id="galeria-sec">
     <h2 class="section__title">Galería</h2>
     <p class="section__subtitle">Explorá por aves, mamíferos y más, o mirá todas las fotos</p>
@@ -89,7 +89,8 @@
   <!-- ===================== SOBRE MILAGROS ===================== -->
   <section class="section sobre" id="sobre">
     <div class="sobre__grid">
-      <img class="sobre__foto" id="sobre-foto" src="images/Perfil.jpeg" alt="Milagros con su cámara">
+      <!-- la foto la pone js/main.js (desde sitio.json, en la versión liviana): así no se baja dos veces -->
+      <img class="sobre__foto" id="sobre-foto" alt="Milagros con su cámara" width="900" height="1200" loading="lazy" decoding="async">
       <div class="sobre__texto">
         <h2>Sobre mí</h2>
         <!-- El texto se edita desde el panel (sitio.json); este es el de respaldo -->
@@ -111,6 +112,7 @@
       </div>
     </div>
   </section>
+  </main>
 
   <!-- ===================== FOOTER ===================== -->
   <footer class="footer" id="contacto">
@@ -169,7 +171,7 @@
   <!-- ⚠️ IMPORTANTE: solo main.js.
        NO debe haber ninguna línea con "js/data.js": ese era el archivo
        de la versión 1. Ahora las fotos se leen desde fotos.json. -->
-  <script src="js/main.js?v=20"></script>
+  <script src="js/main.js?v=21"></script>
 
   <!-- Estadísticas de visitas (GoatCounter: gratis, sin cookies) -->
   <script data-goatcounter="https://wildmilu.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>

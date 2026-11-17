@@ -316,10 +316,10 @@ function resolverMarca(fuente, marca) {
 }
 
 /* Achica la foto (lado mayor ≤ maxLado) y la deja lista para marcar */
-async function prepararFuente(origen) {
+async function prepararFuente(origen, maxLado = CONFIG.maxLado) {
   const img = await cargarImagen(origen);
   const w = img.naturalWidth, h = img.naturalHeight;
-  const escala = Math.min(1, CONFIG.maxLado / Math.max(w, h));
+  const escala = Math.min(1, maxLado / Math.max(w, h));
   const ancho = Math.round(w * escala), alto = Math.round(h * escala);
   const lienzo = lienzoDe(img, ancho, alto);
 
@@ -369,8 +369,8 @@ async function renderizar(fuente, marca) {
 }
 
 /* Achica + marca de una (fotos nuevas en tanda, foto de perfil) */
-async function procesarImagen(archivo, marca = SIN_MARCA) {
-  return renderizar(await prepararFuente(archivo), marca);
+async function procesarImagen(archivo, marca = SIN_MARCA, maxLado = CONFIG.maxLado) {
+  return renderizar(await prepararFuente(archivo, maxLado), marca);
 }
 
 function textoMarca(aplicada) {
@@ -978,7 +978,7 @@ async function alElegirPerfil() {
   $("perfil-info").textContent = "Preparando la foto…";
   $("btn-guardar-sobre").disabled = true;
   try {
-    perfilElegido = await procesarImagen(archivo);
+    perfilElegido = await procesarImagen(archivo, SIN_MARCA, 1200);   // en el sitio se ve chica: no hace falta más
     $("perfil-previa").src = perfilElegido.url;
     $("perfil-info").textContent = `Lista ✓ ${perfilElegido.ancho}×${perfilElegido.alto}px · ${Math.round(perfilElegido.peso / 1024)} KB`;
   } catch {
