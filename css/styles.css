@@ -209,7 +209,7 @@ img { display: block; max-width: 100%; }
 .lightbox__contenido { will-change: transform; position: relative; }
 /* Cinta vertical: fotos del mismo animal (asoman la anterior arriba y la siguiente abajo) */
 .lightbox__ventana {
-  position: absolute; left: 0; right: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  position: absolute; left: 0; z-index: 0; overflow: hidden; pointer-events: none;
   transition: opacity 0.25s ease;
 }
 .lightbox__ventana[hidden] { display: none; }
@@ -409,4 +409,20 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
   .card img, .galeria, .lightbox, .lightbox__meta, .arriba { transition: none !important; }
   .lightbox__hoja, .hoja__caja { animation: none !important; }
   .lightbox__pista { animation: none !important; }
+}
+
+/* ---------- Visor con el celular acostado: foto a la izquierda, texto a la derecha ---------- */
+@media (orientation: landscape) and (max-height: 540px) {
+  .lightbox { padding: 0.75rem 3.5rem 0.75rem 1rem; }
+  .lightbox__contenido {
+    max-width: none; grid-template-columns: minmax(0, 1fr) minmax(220px, 36%);
+    align-items: center; column-gap: 1.5rem; text-align: left;
+  }
+  .lightbox__img { margin-left: auto; margin-right: auto; }
+  .lightbox__meta h3 { font-size: 1.35rem; }
+  .lightbox__meta .detalle { margin-left: 0; -webkit-line-clamp: 3; line-clamp: 3; }
+  .lightbox__botones, .lightbox__puntos { justify-content: flex-start; }
+  .lightbox__pista { display: none; }
+  .lightbox__cerrar { top: 0.5rem; right: 0.75rem; }
+  .lightbox__contador { top: auto; bottom: 0.9rem; left: auto; right: 1rem; }
 }
