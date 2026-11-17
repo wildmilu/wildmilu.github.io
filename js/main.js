@@ -1144,31 +1144,34 @@ window.addEventListener("pointerup", e => {
 });
 // Pellizcar en el trackpad (llega como rueda + Ctrl)
 /* Ruedita / touchpad: recorre la cinta de fotos del mismo animal.
-   - Mouse con ruedita (saltos grandes): cada "clic" pasa una foto.
-   - Touchpad (movimientos chicos y seguidos): la cinta sigue a los dedos y,
-     al soltar, frena en la foto más cercana. */
-let ruedaUltimoPaso = 0, ruedaFin = null;
+   Un deslizón (o un clic de la ruedita) = una foto, con la animación de la cinta.
+   El touchpad sigue mandando movimientos después de soltar (inercia) y en el
+   medio del gesto los manda de tamaños muy distintos: por eso no se mueve la
+   cinta "a mano", sino que se detecta cuándo empieza un deslizón NUEVO:
+   - después de una pausa, o
+   - cuando el movimiento vuelve a crecer (la inercia, en cambio, se va apagando), o
+   - con la ruedita del mouse (saltos grandes e iguales), cada clic. */
+let ruedaT = 0, ruedaMag = 0, ruedaSentido = 0, ruedaPico = 0, ruedaValle = Infinity;
 lightbox.addEventListener("wheel", e => {
   if (e.ctrlKey || !visorAbierto() || hojaAbierta() || ampliada()) return;   // Ctrl+rueda = zoom (abajo)
-  if (!vertical() || !cinta || animando) return;
+  if (!vertical() || !cinta) return;
   e.preventDefault();
-  const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;                   // a veces llega en "líneas"
-  const ruedita = e.deltaMode !== 0 || Math.abs(dy) >= 50;
-  if (ruedita) {
-    const ahora = performance.now();
-    if (ahora - ruedaUltimoPaso < 160) return;                                // un clic = una foto
-    ruedaUltimoPaso = ahora;
-    pasoVertical(Math.sign(dy));
+  const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+  if (Math.abs(dy) < 1 || Math.abs(e.deltaX) > Math.abs(dy)) return;      // movimientos de costado: nada
+  const ahora = performance.now(), mag = Math.abs(dy), sentido = Math.sign(dy);
+  const pausa = ahora - ruedaT > 220;                                       // dejó de mover un rato
+  const cambia = sentido !== ruedaSentido;                                  // cambió de dirección
+  const ruedita = mag >= 50 && Math.abs(mag - ruedaMag) < 1;               // clics iguales de ruedita de mouse
+  // la inercia se estaba apagando (bajó a menos de la mitad del pico) y vuelve a subir: otro deslizón
+  const otraVez = ruedaValle < ruedaPico * 0.5 && mag > ruedaValle * 2 + 6;
+  ruedaT = ahora; ruedaMag = mag; ruedaSentido = sentido;
+  if (pausa || cambia || ruedita || otraVez) {
+    ruedaPico = mag; ruedaValle = Infinity;
+    pasoVertical(sentido);
     return;
   }
-  detenerCinta();
-  lbImg.style.visibility = "hidden";
-  let d = cintaD - dy;
-  if (d > cinta.max) d = cinta.max + (d - cinta.max) * 0.3;                  // en los extremos, resiste
-  if (d < cinta.min) d = cinta.min + (d - cinta.min) * 0.3;
-  dibujarCinta(d);
-  clearTimeout(ruedaFin);
-  ruedaFin = setTimeout(() => irEnCinta(masCercana(cintaD)), 140);          // soltó: frena en la más cercana
+  if (ruedaValle === Infinity && mag >= ruedaPico) ruedaPico = mag;        // todavía acelerando
+  else ruedaValle = Math.min(ruedaValle, mag);                              // ya frenando
 }, { passive: false });
 
 lightbox.addEventListener("wheel", e => {
