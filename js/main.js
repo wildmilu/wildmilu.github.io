@@ -257,7 +257,7 @@ const vertical = () => MODO_CARRUSEL === "vertical";
 // anterior (arriba) y la siguiente (abajo). Todo se mueve con transform (fluido).
 const ASOMO = () => (window.innerWidth <= 700 ? 30 : 40);   // cuánto lugar queda arriba y abajo
 const SEP_CINTA = 12;                                         // espacio entre una foto y la otra
-const ESC_VECINA = 0.9, LUZ_VECINA = 0.45;                    // las de los costados: más chicas y apagadas
+const ESC_VECINA = 0.84, LUZ_VECINA = 0.4;                    // las de los costados: más chicas y apagadas ("atrás")
 const lbVentana = document.createElement("div");
 lbVentana.className = "lightbox__ventana";
 lbVentana.hidden = true;
@@ -414,6 +414,8 @@ function abrirLightbox(indice, { desdeLink = false, sub = 0 } = {}) {
 async function ocultarLightbox() {
   if (!lightbox.classList.contains("abierto") || cerrando) return;
   cerrando = true;
+  detenerCinta();
+  lbImg.style.visibility = "";
   lbHoja.hidden = true;
   limpiarHoja();
   const foto = fotosVisibles[indiceActual];
@@ -573,7 +575,12 @@ function precargarVecinas() {
   });
 }
 
-/* ---------- Cinta vertical de fotos del mismo animal ---------- */
+/* ---------- Cinta vertical de fotos del mismo animal ----------
+   Todas las fotos del animal van en una cinta dentro de una "ventana" (lo que
+   sale de la ventana no se ve). La cinta se mueve entera, cuadro por cuadro, y
+   cada foto se achica y oscurece según lo lejos que está del centro: la que se
+   deja "se va hacia atrás" y la nueva "viene hacia adelante".
+   En reposo, encima de la foto del centro está lbImg (la que usa el zoom). */
 const mezclar = (a, b, p) => a + (b - a) * p;
 const vistaDe = foto => { const g = normalizarRuta(foto.src); const im = cacheImagenes.get(g); return im && im.complete && im.naturalWidth ? g : rutaMiniatura(foto.src); };
 
@@ -585,9 +592,9 @@ function imgCinta(foto) {
     im = document.createElement("img");
     im.className = "lightbox__vecina-v";
     im.alt = "";
-    im.decoding = "async";
+    im.decoding = "sync";
     im.draggable = false;
-    im.addEventListener("click", () => { const k = Number(im.dataset.k); if (k !== subActual) pasoVertical(Math.sign(k - subActual)); });
+    im.addEventListener("click", () => { const k = Number(im.dataset.k); if (k !== subActual) irAFoto(k); });
     elementosCinta.set(foto.src, im);
   }
   const v = vistaDe(foto);
@@ -595,39 +602,45 @@ function imgCinta(foto) {
   return im;
 }
 
-let cinta = null;   // { offsets: [distancia al centro de la actual, por foto], ventanaTop, ventanaAlto }
+let cinta = null;          // { items: [{ k, im, off, paso }], min, max }
+let cintaD = 0;            // cuánto está corrida la cinta (px; negativo = hacia arriba)
+let cintaAnim = 0;         // animación en curso (requestAnimationFrame)
+let cintaFicha = null;
+
 function armarCinta() {
   const ficha = fichaActual(), fotos = fotosDe(ficha), a = asomoDe(ficha);
+  detenerCinta();
   lbVentana.hidden = !a;
-  if (!a) { lbCinta.replaceChildren(); cinta = null; return; }
+  if (!a) { lbCinta.replaceChildren(); cinta = null; cintaFicha = null; return; }
   const imgTop = lbImg.offsetTop, imgAlto = lbImg.offsetHeight;
   const margen = parseFloat(lbImg.style.marginTop) || 0;
   const ventanaTop = imgTop - margen;                       // incluye el asomo de arriba
-  const ventanaAlto = margen * 2 + imgAlto;
-  Object.assign(lbVentana.style, { top: ventanaTop + "px", height: ventanaAlto + "px" });
-  // centros de cada foto, uno debajo del otro
+  Object.assign(lbVentana.style, { top: ventanaTop + "px", height: margen * 2 + imgAlto + "px" });
+  // centros de cada foto, una debajo de la otra (la actual, en el centro de la ventana)
   const tam = fotos.map(f => tamanoEnVisor(f));
   const centro = new Array(fotos.length);
-  centro[subActual] = imgTop - ventanaTop + imgAlto / 2;
+  centro[subActual] = margen + imgAlto / 2;
   for (let k = subActual + 1; k < fotos.length; k++) centro[k] = centro[k - 1] + tam[k - 1].alto / 2 + SEP_CINTA + tam[k].alto / 2;
   for (let k = subActual - 1; k >= 0; k--) centro[k] = centro[k + 1] - tam[k + 1].alto / 2 - SEP_CINTA - tam[k].alto / 2;
+  const off = centro.map(c => c - centro[subActual]);
   const ancho = lbContenido.clientWidth;
-  const hijos = [];
-  fotos.forEach((f, k) => {
-    if (k === subActual || Math.abs(k - subActual) > 2) return;   // la actual es lbImg; más lejos no se ven
+  const items = fotos.map((f, k) => {
     const im = imgCinta(f);
     im.dataset.k = k;
     Object.assign(im.style, {
       width: tam[k].ancho + "px", height: tam[k].alto + "px",
       left: (ancho - tam[k].ancho) / 2 + "px", top: centro[k] - tam[k].alto / 2 + "px",
-      transition: "none", transform: `scale(${ESC_VECINA})`, opacity: LUZ_VECINA,
     });
-    hijos.push(im);
+    const vecino = k > 0 ? off[k] - off[k - 1] : (off[1] - off[0]);
+    return { k, im, off: off[k], paso: Math.abs(vecino) || 1 };
   });
-  lbCinta.replaceChildren(...hijos);
-  lbCinta.style.transition = "none";
-  lbCinta.style.transform = "";
-  cinta = { offsets: centro.map(c => c - centro[subActual]), ventanaTop, ventanaAlto, imgTop, imgAlto };
+  // solo se cambian los hijos si cambió el animal (si no, las imágenes ya están puestas y decodificadas)
+  if (cintaFicha !== ficha || lbCinta.children.length !== items.length) {
+    lbCinta.replaceChildren(...items.map(it => it.im));
+    cintaFicha = ficha;
+  }
+  cinta = { items, min: -off[off.length - 1], max: -off[0] };
+  dibujarCinta(0);
   // Pista para descubrirlo (en el celu, hasta que lo use una vez)
   let usada = false;
   try { usada = localStorage.getItem("wildmilu-pila-usada") === "1"; } catch {}
@@ -639,114 +652,105 @@ function pilaUsada() {
   lbPista.hidden = true;
 }
 
-// La actual no se sale de la "ventana" (así se ve como un carrusel prolijo)
-// (el recorte va en medidas de la foto sin achicar: se corrige por la escala s)
-function recorteActual(d, s = 1) {
-  if (!cinta) return "";
-  const borde = cinta.imgAlto * (1 - s) / 2;                 // cuánto se achica de cada lado
-  const visTop = cinta.imgTop + d + borde, visBottom = cinta.imgTop + d + cinta.imgAlto - borde;
-  const arriba = Math.max(0, cinta.ventanaTop - visTop) / s;
-  const abajo = Math.max(0, visBottom - (cinta.ventanaTop + cinta.ventanaAlto)) / s;
-  return `inset(${arriba}px 0 ${abajo}px 0 round 14px)`;
-}
-
-// Dibuja la cinta corrida d px (d < 0: hacia arriba)
+// Dibuja la cinta corrida d px: la cinta se mueve entera y cada foto se achica/oscurece según su distancia al centro
 function dibujarCinta(d) {
-  lbCinta.style.transform = `translateY(${d}px)`;
-  const destino = subActual + (d < 0 ? 1 : -1);
-  const dist = cinta && cinta.offsets[destino] !== undefined ? Math.abs(cinta.offsets[destino]) : 0;
-  const p = dist ? Math.min(1, Math.abs(d) / dist) : 0;
-  const esc = mezclar(1, ESC_VECINA, p);
-  lbImg.style.transform = `translateY(${d}px) scale(${esc})`;
-  lbImg.style.opacity = mezclar(1, LUZ_VECINA, p);
-  lbImg.style.clipPath = recorteActual(d, esc);
-  for (const im of lbCinta.children) {
-    const k = Number(im.dataset.k);
-    const q = k === destino ? p : 0;
-    im.style.transform = `scale(${mezclar(ESC_VECINA, 1, q)})`;
-    im.style.opacity = mezclar(LUZ_VECINA, 1, q);
+  cintaD = d;
+  lbCinta.style.transform = `translate3d(0, ${d}px, 0)`;
+  for (const it of cinta.items) {
+    const t = Math.min(1, Math.abs(it.off + d) / it.paso);
+    it.im.style.transform = `scale(${mezclar(1, ESC_VECINA, t)})`;
+    it.im.style.opacity = mezclar(1, LUZ_VECINA, t);
   }
-  return p;
 }
 
-function transicionCinta(ms) {
-  const t = `transform ${ms}ms ${CURVA}, opacity ${ms}ms ${CURVA}, clip-path ${ms}ms ${CURVA}`;
-  lbCinta.style.transition = lbImg.style.transition = t;
-  for (const im of lbCinta.children) im.style.transition = t;
+// La foto que queda más cerca del centro si la cinta está en d
+function masCercana(d) {
+  let mejor = cinta.items[0];
+  for (const it of cinta.items) if (Math.abs(it.off + d) < Math.abs(mejor.off + d)) mejor = it;
+  return mejor.k;
 }
-function sinTransicionCinta() {
-  lbCinta.style.transition = lbImg.style.transition = "none";
-  for (const im of lbCinta.children) im.style.transition = "none";
+
+function detenerCinta() {
+  if (cintaAnim) cancelAnimationFrame(cintaAnim);
+  cintaAnim = 0;
+}
+
+// Lleva la cinta hasta la foto k, con una curva suave (y se puede interrumpir con el dedo)
+function irEnCinta(k, vel = 0) {
+  detenerCinta();
+  const desde = cintaD, hasta = -cinta.items[k].off, dist = Math.abs(hasta - desde);
+  if (dist < 0.5) { fijarFoto(k); return; }
+  const ms = Math.max(220, Math.min(520, 200 + dist * 0.55 - Math.abs(vel) * 60));
+  const t0 = performance.now();
+  const paso = ahora => {
+    const t = Math.min(1, (ahora - t0) / ms);
+    const e = 1 - Math.pow(1 - t, 3);                       // arranca rápido y frena suave
+    dibujarCinta(mezclar(desde, hasta, e));
+    if (t < 1) cintaAnim = requestAnimationFrame(paso);
+    else { cintaAnim = 0; fijarFoto(k); }
+  };
+  lbImg.style.visibility = "hidden";                        // mientras se mueve, se ve la cinta
+  cintaAnim = requestAnimationFrame(paso);
+}
+
+// La cinta frenó en la foto k: pasa a ser la actual (sin parpadeo)
+async function fijarFoto(k) {
+  if (k === subActual) { lbImg.style.visibility = ""; return; }
+  animando = true;
+  pilaUsada();
+  subActual = k;
+  mostrarFoto({ sinCinta: true });
+  actualizarDireccion();
+  try { await lbImg.decode(); } catch {}
+  if (!visorAbierto()) { animando = false; return; }
+  armarCinta();                                             // misma imagen, ahora con la nueva en el centro
+  lbImg.style.visibility = "";
+  animando = false;
 }
 
 /* Gesto vertical: "cinta" (↑ siguiente / ↓ anterior) o "cerrar" (↓ en la primera) */
 let vert = null;
+let cintaRetomada = false;   // se tocó la cinta mientras se movía: el dedo la "agarra"
 function empezarVertical(dy) {
-  if (!vertical() || fotosDe(fichaActual()).length < 2 || !cinta) return { tipo: "cerrar" };
-  if (dy > 0 && subActual === 0) return { tipo: "cerrar" };
-  sinTransicionCinta();
-  return { tipo: "cinta", p: 0, d: 0 };
+  if (!vertical() || !cinta) return { tipo: "cerrar" };
+  if (!cintaRetomada && dy > 0 && subActual === 0 && Math.abs(cintaD) < 1) return { tipo: "cerrar" };
+  lbImg.style.visibility = "hidden";
+  return { tipo: "cinta", base: cintaD - dy, d: cintaD };   // sin salto: arranca desde donde está
 }
 
 function moverVertical(dy) {
-  const n = fotosDe(fichaActual()).length;
-  let d = dy;
-  if ((dy < 0 && subActual === n - 1) || (dy > 0 && subActual === 0)) d = dy * 0.3;   // en los extremos, resiste
+  let d = vert.base + dy;
+  if (d > cinta.max) d = cinta.max + (d - cinta.max) * 0.3;          // en los extremos, resiste
+  if (d < cinta.min) d = cinta.min + (d - cinta.min) * 0.3;
   vert.d = d;
-  vert.p = dibujarCinta(d);
+  dibujarCinta(d);
 }
 
-// Suelta el dedo: pasa si se movió bastante o fue un deslizón rápido; si no, vuelve
+// Suelta el dedo: la cinta sigue un poco por la inercia y frena centrada en una foto
 function soltarVertical(velY) {
-  const v = vert, n = fotosDe(fichaActual()).length;
-  const dir = v.d < 0 ? 1 : -1;
-  const existe = subActual + dir >= 0 && subActual + dir < n;
-  const rapido = Math.abs(velY) > 0.35 && Math.sign(velY) === Math.sign(v.d) && Math.abs(v.d) > 15;
-  if (existe && (v.p > 0.22 || rapido)) completarVertical(dir, Math.abs(velY));
-  else volverVertical();
+  const aca = masCercana(vert.d);                         // la que está más cerca del centro al soltar
+  const proyectado = Math.max(cinta.min, Math.min(cinta.max, vert.d + velY * 160));
+  let k = masCercana(proyectado);
+  // un deslizón corto pero decidido pasa a la vecina…
+  if (k === aca && Math.abs(velY) > 0.35) k = aca + (velY < 0 ? 1 : -1);
+  // …y nunca salta más de una foto de golpe (como en Instagram)
+  k = Math.max(aca - 1, Math.min(aca + 1, k));
+  irEnCinta(Math.max(0, Math.min(cinta.items.length - 1, k)), velY);
 }
 
-async function completarVertical(dir, vel = 0) {
-  animando = true;
-  pilaUsada();
-  const destino = subActual + dir;
-  const o = cinta.offsets[destino];
-  // más rápido si el deslizón fue rápido
-  const ms = Math.round(Math.max(200, Math.min(DURACION, DURACION - vel * 80)));
-  transicionCinta(ms);
-  dibujarCinta(-o);
-  const entrante = [...lbCinta.children].find(im => Number(im.dataset.k) === destino);
-  await pausa(ms);
-  if (!visorAbierto()) { animando = false; return; }
-  // Cambio de foto sin parpadeo: la nueva queda lista (decodificada) antes de mostrarla
-  subActual = destino;
-  lbImg.style.visibility = "hidden";
-  mostrarFoto({ sinCinta: true });
-  actualizarDireccion();
-  try { await lbImg.decode(); } catch {}
-  sinTransicionCinta();
-  Object.assign(lbImg.style, { transform: "", opacity: "", clipPath: "", visibility: "" });
-  armarCinta();
-  if (entrante && !entrante.isConnected) entrante.style.transform = "";
-  animando = false;
-}
-
-function volverVertical() {
-  transicionCinta(260);
-  dibujarCinta(0);
-  setTimeout(() => { if (!animando) { lbImg.style.clipPath = ""; lbImg.style.opacity = ""; } }, 270);
-}
+function volverVertical() { if (cinta) irEnCinta(masCercana(cintaD)); }
 
 // Teclado (↓ ↑), puntitos y tocar una foto vecina
-function pasoVertical(dir) {
-  const n = fotosDe(fichaActual()).length;
+function irAFotoCinta(k) {
   if (!vertical() || !cinta || animando || cerrando || ampliada()) return false;
-  if (dir > 0 ? subActual >= n - 1 : subActual <= 0) return false;
-  if (sinMovimiento.matches) { subActual += dir; mostrarFoto(); actualizarDireccion(); return true; }
-  sinTransicionCinta();
-  lbCinta.getBoundingClientRect();
-  completarVertical(dir);
+  if (k < 0 || k >= cinta.items.length || (k === subActual && !cintaAnim)) return false;
+  if (sinMovimiento.matches) { subActual = k; mostrarFoto(); actualizarDireccion(); return true; }
+  irEnCinta(k);
   return true;
+}
+function pasoVertical(dir) {
+  const actual = cintaAnim && cinta ? masCercana(cintaD) : subActual;
+  return irAFotoCinta(actual + dir);
 }
 
 /* Compartir: en el celular abre el menú de compartir (WhatsApp, etc.);
@@ -1101,10 +1105,7 @@ function cambiar(dir, pos = posicionVecina(dir)) {
 // Tocar un puntito: va directo a esa foto del animal
 function irAFoto(k) {
   if (k === subActual || animando) return;
-  if (vertical()) {
-    if (Math.abs(k - subActual) === 1) { pasoVertical(k - subActual); return; }
-    subActual = k; mostrarFoto(); actualizarDireccion(); return;
-  }
+  if (vertical()) { irAFotoCinta(k); return; }
   cambiar(k > subActual ? 1 : -1, { indice: indiceActual, sub: k, misma: true });
 }
 
@@ -1154,6 +1155,8 @@ lightbox.addEventListener("touchstart", e => {
   toqueT = e.timeStamp;
   if (ampliada()) { empezarMover(t); return; }
   modo = "gesto";
+  cintaRetomada = !!cintaAnim;                       // se movía: el dedo la frena y la agarra
+  if (cintaRetomada) detenerCinta();
   toqueX = ultimoX = t.clientX;
   toqueY = t.clientY;
   ultimoT = e.timeStamp;
@@ -1185,6 +1188,7 @@ lightbox.addEventListener("touchmove", e => {
   const x = t.clientX;
   const dx = x - toqueX;
   const dy = t.clientY - toqueY;
+  if (!direccion && cintaRetomada) direccion = "vertical";
   if (!direccion && Math.hypot(dx, dy) > 10) direccion = Math.abs(dy) > Math.abs(dx) ? "vertical" : "horizontal";
   if (direccion === "vertical") {
     if (!vert) vert = empezarVertical(dy);
@@ -1226,6 +1230,10 @@ lightbox.addEventListener("touchend", e => {
     return;
   }
   modo = null;
+  if (cintaRetomada && (!vert || toqueCorto)) {       // la frenó con un toque: termina en la foto más cercana
+    cintaRetomada = false; vert = null; direccion = null; volverVertical(); return;
+  }
+  cintaRetomada = false;
   if (toqueCorto) { dobleToque(t, e); direccion = null; return; }
 
   if (direccion === "horizontal" && ladoVecina) {
