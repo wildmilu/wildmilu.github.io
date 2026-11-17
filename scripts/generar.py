@@ -42,7 +42,8 @@ def ruta(src):
 
 
 def id_foto(foto):
-    return os.path.splitext(os.path.basename(ruta(foto["src"])))[0]
+    # "id" fijo si la ficha lo tiene (el link no cambia aunque se cambie la portada)
+    return str(foto.get("id") or os.path.splitext(os.path.basename(ruta(foto["src"])))[0])
 
 
 def miniatura(src):
@@ -71,6 +72,8 @@ for nombre in os.listdir("."):
         shutil.copy2(nombre, SALIDA)
 
 fotos = [f for f in json.load(open("fotos.json", encoding="utf-8")).get("fotos", []) if f and f.get("src")]
+# Cada entrada es una "ficha" (un posteo): su foto principal + las de "extras" (mismo animal)
+todas = [x for f in fotos for x in [f, *(f.get("extras") or [])] if isinstance(x, dict) and x.get("src")]
 
 # ---------- 1b. Miniaturas que falten ----------
 try:
@@ -78,7 +81,7 @@ try:
 except ImportError:
     Image = None
     print("Aviso: sin Pillow no se generan miniaturas faltantes")
-for foto in fotos:
+for foto in todas:
     src, mini = ruta(foto["src"]), miniatura(foto["src"])
     destino = os.path.join(SALIDA, mini)
     if Image is None or mini == src or os.path.exists(destino) or not os.path.exists(src):
@@ -92,7 +95,7 @@ for foto in fotos:
 
 # ---------- 1c. Tamaño y color que falten (la galería los usa para no "saltar") ----------
 completadas = 0
-for foto in fotos:
+for foto in todas:
     src = ruta(foto["src"])
     if Image is None or not os.path.exists(src) or (foto.get("ancho") and foto.get("alto") and foto.get("color")):
         continue
@@ -131,7 +134,7 @@ PLANTILLA = """<!DOCTYPE html>
 <meta property="og:locale" content="es_AR">
 <meta name="twitter:card" content="summary_large_image">
 <meta http-equiv="refresh" content="0; url={destino}">
-<script>location.replace({destino_js});</script>
+<script>var n=location.search.match(/[?&]n=(\\d+)/);location.replace({destino_js}+(n?"&n="+n[1]:""));</script>
 <style>body{{margin:0;background:#14120f;color:#f7f4ec;font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}}a{{color:#f2b8a2}}</style>
 </head>
 <body><p><a href="{destino}">Ver «{titulo}» en WildMilu</a></p></body>
@@ -199,7 +202,7 @@ if args.prueba:
 imagenes = "\n".join(
     f"""    <image:image>
       <image:loc>{e(url(ruta(foto["src"])))}</image:loc>
-    </image:image>""" for foto in fotos)
+    </image:image>""" for foto in todas)
 with open(os.path.join(SALIDA, "sitemap.xml"), "w", encoding="utf-8") as f:
     f.write(f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"

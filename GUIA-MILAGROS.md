@@ -65,6 +65,24 @@ Si subís varias juntas, todas llevan la marca automática; después la podés c
 
 Si querés poner la marca vos en Lightroom, los archivos están en la carpeta `admin/marca/` del sitio.
 
+## 🖼️ Varias fotos del mismo animal (como un carrusel de Instagram)
+
+Cada **publicación** puede tener varias fotos: en la galería se ve una sola (la
+**portada**, con un iconito que dice cuántas hay) y en el visor se pasan
+deslizando, con puntitos abajo. El texto es el mismo para todas.
+
+- **Al crear una:** elegí la primera foto y después tocá **+ Más fotos de este animal**.
+- **Con "Agregar varias":** si elegís varias fotos te pregunta si son del mismo
+  animal. Si decís que sí, quedan juntas (la primera es la portada).
+- **Ordenar:** en **Editar**, usá ◀ ▶ debajo de cada miniatura. La primera es la portada.
+- **Marca de agua:** tocá una miniatura para verla grande y elegir su marca (cada foto tiene la suya).
+- **Quitar una foto:** la ✕ roja debajo de la miniatura.
+- **Si subiste fotos del mismo posteo por separado:** abrí una con **Editar** →
+  **Unir con otra publicación** → elegí la otra → **Unir**.
+
+Una idea: **una publicación por posteo de Instagram**. Si volvés a fotografiar
+al mismo animal otro día, conviene que sea una publicación nueva, con su texto.
+
 ## 🔍 Buscar una foto
 Arriba de la lista hay un buscador: escribí parte del nombre, la especie,
 el lugar o la clase (no importan los acentos).

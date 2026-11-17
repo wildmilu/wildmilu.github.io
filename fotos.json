@@ -219,7 +219,30 @@
       "ancho": 1600,
       "alto": 1106,
       "color": "#b19470",
-      "marca": "arriba-oscura"
+      "marca": "arriba-oscura",
+      "extras": [
+        {
+          "src": "images/vaca-highland-2.jpg",
+          "ancho": 2000,
+          "alto": 1324,
+          "color": "#e3a257",
+          "marca": "arriba-clara"
+        },
+        {
+          "src": "images/vaca-highland-3.jpg",
+          "ancho": 2000,
+          "alto": 1333,
+          "color": "#2c1a0d",
+          "marca": "arriba-oscura"
+        },
+        {
+          "src": "images/vaca-highland-4.jpg",
+          "ancho": 2000,
+          "alto": 1507,
+          "color": "#654a35",
+          "marca": "arriba-oscura"
+        }
+      ]
     },
     {
       "src": "images/chingolo1-1-de-1.jpg",

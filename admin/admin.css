@@ -170,3 +170,21 @@ dialog h2 { font-family: var(--fuente-titulo); color: var(--verde-bosque); }
 .segmentos input:checked + span { background: var(--verde-bosque); color: #fff; }
 .segmentos input:focus-visible + span { outline: 2px solid var(--verde-hoja); outline-offset: 2px; }
 .marca small, #marca-ya { display: block; color: var(--gris-suave); margin-top: .5rem; }
+
+/* ---------- Varias fotos del mismo animal ---------- */
+.campo-imagen__botones { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tira { list-style: none; display: flex; gap: .5rem; overflow-x: auto; padding: .2rem .1rem .4rem; width: 100%; }
+.tira__item { flex: 0 0 auto; display: grid; gap: .25rem; justify-items: center; }
+.tira__ver { position: relative; padding: 0; border: 2px solid transparent; border-radius: 10px; background: none; cursor: pointer; }
+.tira__item.activa .tira__ver { border-color: var(--verde-bosque); }
+.tira__ver img { display: block; width: 76px; height: 58px; object-fit: cover; border-radius: 8px; background: var(--arena); }
+.tira__portada {
+  position: absolute; left: 4px; bottom: 4px; padding: 0 .35rem; border-radius: 999px;
+  background: rgba(38, 34, 29, .7); color: #fff; font-size: .62rem; line-height: 1.5;
+}
+.tira__acciones { display: flex; gap: .1rem; }
+.tira__acciones .btn--icono { padding: .2rem .45rem; font-size: .75rem; }
+.unir { margin-top: 1rem; font-size: .85rem; }
+.unir summary { cursor: pointer; color: var(--gris-suave); }
+.unir__fila { display: flex; gap: .5rem; margin-top: .4rem; }
+.unir__fila select { flex: 1; min-width: 0; }

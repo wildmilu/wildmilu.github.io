@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="admin.css?v=5">
+  <link rel="stylesheet" href="admin.css?v=6">
 </head>
 <body>
 
@@ -80,9 +80,16 @@
 
       <div class="campo-imagen">
         <img id="vista-previa" alt="" hidden>
-        <label class="btn btn--suave" for="archivo" id="archivo-label">Elegir foto</label>
-        <input id="archivo" type="file" accept="image/*" hidden>
+        <!-- Fotos de este animal: la primera es la portada (la que se ve en la galería) -->
+        <ul class="tira" id="tira" hidden></ul>
+        <div class="campo-imagen__botones">
+          <label class="btn btn--suave" for="archivo" id="archivo-label">Elegir foto</label>
+          <input id="archivo" type="file" accept="image/*" hidden>
+          <label class="btn btn--suave" for="extras-archivo" id="extras-label" hidden>+ Más fotos de este animal</label>
+          <input id="extras-archivo" type="file" accept="image/*" multiple hidden>
+        </div>
         <small id="archivo-info"></small>
+        <small id="tira-ayuda" hidden>Tocá una foto para verla y cambiarle la marca. La primera es la portada: usá ◀ ▶ para cambiar el orden.</small>
         <button class="btn btn--suave" type="button" id="btn-poner-marca" hidden>Ponerle la marca de agua</button>
         <small id="marca-ya" hidden>Esta foto ya tiene la marca de agua.</small>
       </div>
@@ -125,6 +132,15 @@
       <label for="f-descripcion">Descripción / anécdota</label>
       <textarea id="f-descripcion" rows="3"></textarea>
 
+      <details class="unir" id="unir" hidden>
+        <summary>Unir con otra publicación</summary>
+        <p class="ayuda ayuda--chica">Si subiste fotos del mismo posteo por separado: estas fotos pasan a la publicación que elijas (que conserva su texto) y esta se elimina.</p>
+        <div class="unir__fila">
+          <select id="unir-destino"></select>
+          <button class="btn btn--suave" type="button" id="btn-unir">Unir</button>
+        </div>
+      </details>
+
       <p class="error" id="form-error" hidden></p>
 
       <div class="acciones">
@@ -161,6 +177,6 @@
 
   <!-- Para reordenar arrastrando (funciona con el dedo en el celular) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.7/Sortable.min.js"></script>
-  <script src="admin.js?v=8"></script>
+  <script src="admin.js?v=9"></script>
 </body>
 </html>

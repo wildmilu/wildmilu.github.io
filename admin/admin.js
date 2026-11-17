@@ -42,10 +42,7 @@ let imagenesNuevas = new Map();   // ruta → { base64, miniatura } (pendientes 
 let vistasPrevias = new Map();    // ruta → objectURL (para ver fotos aún no desplegadas)
 let cambios = [];             // descripciones para el mensaje del commit
 let editando = -1;            // índice en edición (-1 = nueva)
-let imagenElegida = null;     // foto lista (renderizar) elegida en el formulario
-let fuenteForm = null;        // foto preparada en el formulario: cambiar la marca no obliga a elegirla de nuevo
-let origenForm = null;        // archivo (o foto publicada) del que sale fuenteForm
-let reemplazaRuta = false;    // true: se guarda en la misma ruta (marcar una foto ya publicada o una pendiente)
+let fuenteForm = null;        // foto elegida en el formulario, ya preparada: cambiar la marca no obliga a elegirla de nuevo
 let turnoMarca = 0;           // descarta vistas previas viejas si se cambia de opción rápido
 
 const $ = id => document.getElementById(id);
@@ -150,7 +147,7 @@ async function publicar(progreso = () => {}) {
   const commit = await gh(`${repo()}/git/commits/${cabeza}`);
   const arbol = [];
 
-  const usadas = new Set([...fotos.map(f => rutaRepo(f.src)), rutaRepo(sitio.sobre.foto)]);
+  const usadas = new Set([...fotos.flatMap(fotosDe).map(f => rutaRepo(f.src)), rutaRepo(sitio.sobre.foto)]);
   const archivos = [];
   for (const [ruta, imagen] of imagenesNuevas) {
     if (!usadas.has(ruta)) continue;  // se agregó y se reemplazó/borró antes de publicar
@@ -386,7 +383,7 @@ function slug(texto) {
 }
 
 function rutaNueva(titulo, reservadas = []) {
-  const existentes = new Set([...fotos.map(f => rutaRepo(f.src)), ...imagenesNuevas.keys(), ...reservadas]);
+  const existentes = new Set([...fotos.flatMap(fotosDe).map(f => rutaRepo(f.src)), ...imagenesNuevas.keys(), ...reservadas]);
   const base = `${CONFIG.carpetaImagenes}/${slug(titulo)}`;
   let ruta = `${base}.jpg`, n = 2;
   while (existentes.has(ruta)) ruta = `${base}-${n++}.jpg`;
@@ -459,15 +456,17 @@ function render() {
     const titulo = document.createElement("div");
     titulo.className = "item__titulo";
     titulo.textContent = foto.titulo || "(sin título)";
-    if (imagenesNuevas.has(rutaRepo(foto.src))) {
+    const pendientes = fotosDe(foto).filter(f => imagenesNuevas.has(rutaRepo(f.src)));
+    if (pendientes.length) {
       const et = document.createElement("span");
       et.className = "etiqueta";
-      et.textContent = esPublicada(foto.src) ? "con marca" : "nueva";
+      et.textContent = pendientes.some(f => !esPublicada(f.src)) ? "nueva" : "con marca";
       titulo.appendChild(et);
     }
     const meta = document.createElement("div");
     meta.className = "item__meta";
-    meta.textContent = [foto.categoria, foto.especie].filter(Boolean).join(" · ");
+    const cuantas = fotosDe(foto).length;
+    meta.textContent = [foto.categoria, foto.especie, cuantas > 1 && `${cuantas} fotos`].filter(Boolean).join(" · ");
     const faltan = [!foto.titulo && "título", !foto.lugar && "lugar", !foto.fecha && "fecha"].filter(Boolean);
     if (faltan.length) {
       const falta = document.createElement("span");
@@ -514,46 +513,61 @@ function borrar(i) {
   render();
 }
 
-/* ---------- Formulario ---------- */
+/* ---------- Formulario ----------
+   Cada entrada de fotos.json es una "ficha" (un posteo): su foto principal
+   (portada: src, ancho, alto, color, marca) y, si tiene, otras fotos del mismo
+   animal en "extras" (cada una con src, ancho, alto, color, marca). */
+function fotosDe(ficha) {
+  if (!ficha) return [];
+  return [ficha, ...(Array.isArray(ficha.extras) ? ficha.extras : [])].filter(f => f && f.src);
+}
+const datosFoto = f => {
+  const d = { src: f.src };
+  for (const k of ["ancho", "alto", "color", "marca"]) if (f[k]) d[k] = f[k];
+  return d;
+};
+const idDe = ficha => ficha.id || rutaRepo(ficha.src).split("/").pop().replace(/\.[^.]+$/, "");
+
+function rutasPublicadas() {
+  return new Set(fotosPublicadas.flatMap(fotosDe).map(f => rutaRepo(f.src)));
+}
 function esPublicada(src) {
-  const ruta = rutaRepo(src);
-  return fotosPublicadas.some(f => rutaRepo(f.src) === ruta);
+  return rutasPublicadas().has(rutaRepo(src));
+}
+
+/* Estado del formulario: las fotos de la ficha, en orden (la 0 es la portada).
+   Cada una: { ruta, datos, origen, listo, marca, aplicada, url }
+   - ruta/datos: la foto tal como está guardada (null si es nueva)
+   - origen: el archivo limpio (sin marca) del que se arma la versión final
+   - listo: la versión nueva lista para subir (si hubo cambios) */
+let formFotos = [];
+let sel = 0;                  // foto elegida en la tira
+
+function itemDeFoto(f) {
+  const ruta = rutaRepo(f.src);
+  const pendiente = imagenesNuevas.get(ruta);
+  return {
+    ruta, datos: datosFoto(f),
+    origen: pendiente ? pendiente.origen : null,
+    marca: pendiente ? pendiente.marca : null,
+    aplicada: pendiente ? pendiente.aplicada : null,
+    listo: null,
+    url: urlMiniatura(f.src),
+  };
 }
 
 function abrirFormulario(i = -1) {
   editando = i;
-  imagenElegida = null;
-  fuenteForm = null;
-  origenForm = null;
-  reemplazaRuta = false;
   turnoMarca++;
+  fuenteForm = null;
   const foto = i >= 0 ? fotos[i] : { titulo: "", especie: "", categoria: "Aves", lugar: "", fecha: "", descripcion: "" };
+  formFotos = i >= 0 ? fotosDe(foto).map(itemDeFoto) : [];
+  sel = 0;
 
-  $("dialogo-titulo").textContent = i >= 0 ? "Editar foto" : "Agregar foto";
-  $("archivo-label").textContent = i >= 0 ? "Cambiar foto" : "Elegir foto";
-  $("archivo").value = "";
+  $("dialogo-titulo").textContent = i >= 0 ? "Editar publicación" : "Agregar foto";
+  $("archivo").value = $("extras-archivo").value = "";
   $("archivo-info").textContent = "";
   $("form-error").hidden = true;
-  $("vista-previa").hidden = i < 0;
-  if (i >= 0) $("vista-previa").src = urlMiniatura(foto.src);
-
-  // Marca de agua: según si la foto es nueva, está pendiente o ya publicada
-  $("marca").hidden = true;
-  $("btn-poner-marca").hidden = true;
-  $("btn-poner-marca").disabled = false;
-  $("marca-ya").hidden = true;
-  const pendiente = i >= 0 ? imagenesNuevas.get(rutaRepo(foto.src)) : null;
-  if (pendiente && pendiente.origen) {
-    // todavía no se publicó: se puede cambiar la marca partiendo de la foto limpia
-    origenForm = pendiente.origen;
-    reemplazaRuta = true;
-    ponerMarcaEnForm(pendiente.marca || SIN_MARCA);
-    $("marca-info").textContent = pendiente.aplicada ? `Quedó ${textoMarca(pendiente.aplicada)}.` : "Va sin marca.";
-    $("marca").hidden = false;
-  } else if (i >= 0 && !/^https?:\/\//i.test(foto.src)) {
-    if (foto.marca) $("marca-ya").hidden = false;
-    else $("btn-poner-marca").hidden = false;
-  }
 
   $("f-titulo").value = foto.titulo || "";
   $("f-especie").value = foto.especie || "";
@@ -562,10 +576,102 @@ function abrirFormulario(i = -1) {
   $("f-fecha").value = foto.fecha || "";
   $("f-descripcion").value = foto.descripcion || "";
 
+  // "Unir con otra publicación": solo al editar
+  $("unir").hidden = i < 0 || fotos.length < 2;
+  $("unir").open = false;
+  $("unir-destino").innerHTML = "";
+  fotos.forEach((f, k) => {
+    if (k === i) return;
+    const o = document.createElement("option");
+    o.value = k;
+    o.textContent = (f.titulo || "(sin título)") + (f.especie ? ` — ${f.especie}` : "");
+    $("unir-destino").appendChild(o);
+  });
+
+  dibujarTira();
+  elegirEnTira(0);
   $("dialogo").showModal();
 }
 
-/* "Automática" decide posición y color juntos; "Arriba"/"Abajo" muestran Clara/Oscura */
+/* Tira de miniaturas: elegir, mover (◀ ▶) y quitar fotos del animal */
+function dibujarTira() {
+  const tira = $("tira");
+  tira.innerHTML = "";
+  tira.hidden = formFotos.length < 2;
+  $("tira-ayuda").hidden = formFotos.length < 2;
+  $("extras-label").hidden = formFotos.length === 0;
+  $("archivo-label").textContent = formFotos.length ? "Cambiar esta foto" : "Elegir foto";
+  formFotos.forEach((item, k) => {
+    const li = document.createElement("li");
+    li.className = "tira__item" + (k === sel ? " activa" : "");
+    const ver = document.createElement("button");
+    ver.type = "button";
+    ver.className = "tira__ver";
+    ver.title = k === 0 ? "Portada" : `Foto ${k + 1}`;
+    const img = document.createElement("img");
+    img.src = item.listo ? item.listo.url : item.url;
+    img.alt = "";
+    ver.append(img);
+    if (k === 0) {
+      const et = document.createElement("span");
+      et.className = "tira__portada";
+      et.textContent = "Portada";
+      ver.append(et);
+    }
+    ver.addEventListener("click", () => elegirEnTira(k));
+    const acciones = document.createElement("div");
+    acciones.className = "tira__acciones";
+    const izq = boton("◀", "Mover antes", "btn--suave", () => moverEnTira(k, -1));
+    const der = boton("▶", "Mover después", "btn--suave", () => moverEnTira(k, 1));
+    const quitar = boton("✕", "Quitar esta foto", "btn--peligro", () => quitarDeTira(k));
+    izq.disabled = k === 0;
+    der.disabled = k === formFotos.length - 1;
+    acciones.append(izq, der, quitar);
+    li.append(ver, acciones);
+    tira.appendChild(li);
+  });
+}
+
+function moverEnTira(k, dir) {
+  const j = k + dir;
+  if (j < 0 || j >= formFotos.length) return;
+  [formFotos[k], formFotos[j]] = [formFotos[j], formFotos[k]];
+  if (sel === k) sel = j; else if (sel === j) sel = k;
+  dibujarTira();
+}
+
+function quitarDeTira(k) {
+  formFotos.splice(k, 1);
+  dibujarTira();
+  elegirEnTira(Math.min(sel >= k && sel > 0 ? sel - 1 : sel, formFotos.length - 1));
+}
+
+/* Muestra la foto k grande y la marca de agua que corresponde a ESA foto */
+function elegirEnTira(k) {
+  turnoMarca++;
+  fuenteForm = null;
+  sel = Math.max(0, k);
+  const item = formFotos[sel];
+  [...$("tira").children].forEach((li, n) => li.classList.toggle("activa", n === sel));
+  $("vista-previa").hidden = !item;
+  $("marca").hidden = true;
+  $("btn-poner-marca").hidden = true;
+  $("btn-poner-marca").disabled = false;
+  $("marca-ya").hidden = true;
+  if (!item) return;
+  $("vista-previa").src = item.listo ? item.listo.url : item.url;
+  if (item.origen) {
+    // nueva o sin publicar todavía: se puede cambiar la marca partiendo de la foto limpia
+    ponerMarcaEnForm(item.marca || SIN_MARCA);
+    const ap = item.listo ? item.listo.aplicada : item.aplicada;
+    $("marca-info").textContent = ap ? `Quedó ${textoMarca(ap)}.` : "Va sin marca.";
+    $("marca").hidden = false;
+  } else if (item.datos && !/^https?:\/\//i.test(item.datos.src)) {
+    if (item.datos.marca) $("marca-ya").hidden = false;
+    else $("btn-poner-marca").hidden = false;
+  }
+}
+
 function marcaDelForm() {
   const valor = nombre => (document.querySelector(`input[name="${nombre}"]:checked`) || {}).value;
   const pos = valor("marca-pos") || "auto";
@@ -581,17 +687,18 @@ function ponerMarcaEnForm(marca) {
   $("marca-colores").hidden = !(marca.pos === "arriba" || marca.pos === "abajo");
 }
 
-/* Vuelve a armar la vista previa con la marca elegida */
+/* Vuelve a armar la foto elegida con la marca elegida */
 async function actualizarMarca(evento) {
   let marca = marcaDelForm();
   const manual = marca.pos === "arriba" || marca.pos === "abajo";
   $("marca-colores").hidden = !manual;
-  if (!fuenteForm && !origenForm) return;
+  const item = formFotos[sel];
+  if (!item || !item.origen) return;
   const turno = ++turnoMarca;
   $("btn-guardar").disabled = true;
   $("marca-info").textContent = "Aplicando…";
   try {
-    if (!fuenteForm) fuenteForm = await prepararFuente(origenForm);
+    if (!fuenteForm) fuenteForm = await prepararFuente(item.origen);
     if (turno !== turnoMarca) return;
     // al pasar a Arriba/Abajo, arranca con el color que mejor se lee ahí
     if (manual && evento && evento.target && evento.target.name === "marca-pos") {
@@ -601,9 +708,11 @@ async function actualizarMarca(evento) {
     }
     const listo = await renderizar(fuenteForm, marca);
     if (turno !== turnoMarca) return;
-    imagenElegida = listo;
+    item.listo = listo;
+    item.marca = marca;
     $("vista-previa").src = listo.url;
-    $("vista-previa").hidden = false;
+    const mini = $("tira").children[sel];
+    if (mini) mini.querySelector("img").src = listo.url;
     const automatico = listo.aplicada && marca.pos === "auto";
     $("marca-info").textContent = !listo.aplicada
       ? (marca.pos === "no" ? "La foto se publica sin marca." : "No se pudo cargar la marca de agua: va sin marca.")
@@ -615,48 +724,62 @@ async function actualizarMarca(evento) {
   }
 }
 
+/* Elegir (o cambiar) la foto que está seleccionada en la tira */
 async function alElegirArchivo() {
   const archivo = $("archivo").files[0];
+  $("archivo").value = "";
   if (!archivo) return;
   $("archivo-info").textContent = "Preparando la foto…";
   $("btn-guardar").disabled = true;
   try {
-    fuenteForm = await prepararFuente(archivo);
-    origenForm = archivo;
-    reemplazaRuta = false;
-    imagenElegida = null;
-    $("btn-poner-marca").hidden = true;
-    $("marca-ya").hidden = true;
-    ponerMarcaEnForm(MARCA_AUTO);
-    $("marca").hidden = false;
-    await actualizarMarca();
-    if (!imagenElegida) throw new Error("sin imagen");
+    const listo = await procesarImagen(archivo, MARCA_AUTO);
+    const item = { ruta: null, datos: null, origen: archivo, marca: MARCA_AUTO, aplicada: listo.aplicada, listo, url: listo.url };
+    if (formFotos.length) formFotos[sel] = item; else formFotos.push(item);
+    dibujarTira();
+    elegirEnTira(sel);
+    if (listo.aplicada) $("marca-info").textContent = `Quedó ${textoMarca(listo.aplicada)} (lo eligió el panel según la foto).`;
     const mb = (archivo.size / 1048576).toFixed(1);
-    const kb = Math.round(imagenElegida.peso / 1024);
-    $("archivo-info").textContent = `Lista ✓ ${imagenElegida.ancho}×${imagenElegida.alto}px · ${mb} MB → ${kb} KB`;
+    $("archivo-info").textContent = `Lista ✓ ${listo.ancho}×${listo.alto}px · ${mb} MB → ${Math.round(listo.peso / 1024)} KB`;
     if (!$("f-titulo").value) $("f-titulo").value = archivo.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
   } catch {
-    imagenElegida = null;
-    fuenteForm = origenForm = null;
-    $("marca").hidden = true;
     $("archivo-info").textContent = "No se pudo leer esta foto. Probá con JPG o PNG.";
   } finally {
     $("btn-guardar").disabled = false;
   }
 }
 
+/* "+ Más fotos de este animal": se suman al final, con la marca automática */
+async function alAgregarExtras() {
+  const archivos = [...$("extras-archivo").files];
+  $("extras-archivo").value = "";
+  if (!archivos.length) return;
+  $("btn-guardar").disabled = true;
+  const fallaron = [];
+  for (const [n, archivo] of archivos.entries()) {
+    $("archivo-info").textContent = `Preparando ${n + 1} de ${archivos.length}…`;
+    try {
+      const listo = await procesarImagen(archivo, MARCA_AUTO);
+      formFotos.push({ ruta: null, datos: null, origen: archivo, marca: MARCA_AUTO, aplicada: listo.aplicada, listo, url: listo.url });
+    } catch { fallaron.push(archivo.name); }
+  }
+  $("archivo-info").textContent = fallaron.length ? `No se pudieron leer: ${fallaron.join(", ")}` : "";
+  dibujarTira();
+  elegirEnTira(formFotos.length - 1);
+  $("btn-guardar").disabled = false;
+}
+
 /* Foto ya publicada sin marca: la baja del sitio y le pone la marca */
 async function ponerMarcaExistente() {
-  const foto = fotos[editando];
+  const item = formFotos[sel];
   const btn = $("btn-poner-marca");
   btn.disabled = true;
   btn.textContent = "Cargando la foto…";
   try {
-    const resp = await fetch("../" + rutaRepo(foto.src), { cache: "no-cache" });
+    const resp = await fetch("../" + item.ruta, { cache: "no-cache" });
     if (!resp.ok) throw new Error(resp.status);
-    origenForm = await resp.blob();
+    item.origen = await resp.blob();
+    item.reemplaza = true;          // se guarda en la misma ruta: su link no cambia
     fuenteForm = null;
-    reemplazaRuta = true;
     ponerMarcaEnForm(MARCA_AUTO);
     $("marca").hidden = false;
     btn.hidden = true;
@@ -669,23 +792,49 @@ async function ponerMarcaExistente() {
   }
 }
 
+/* Pasa las fotos del formulario a datos de fotos.json (y deja listas las imágenes a subir) */
+function guardarFotos(titulo) {
+  const publicadas = rutasPublicadas();
+  const reservadas = [];
+  let marcadas = 0;
+  const lista = formFotos.map((item, k) => {
+    if (!item.listo) return item.datos;       // sin cambios
+    const publicada = item.ruta && publicadas.has(item.ruta);
+    // misma ruta si se marca una foto ya publicada (su link no cambia) o si todavía no se publicó
+    const ruta = item.ruta && (item.reemplaza || !publicada)
+      ? item.ruta
+      : rutaNueva(k === 0 ? titulo : `${titulo}-${k + 1}`, reservadas);
+    reservadas.push(ruta);
+    if (publicada && item.reemplaza && !item.listo.aplicada) {   // publicada + "Sin marca": queda como estaba
+      imagenesNuevas.delete(ruta);
+      vistasPrevias.delete(ruta);
+      return item.datos;
+    }
+    if (publicada && item.reemplaza) marcadas++;
+    imagenesNuevas.set(ruta, {
+      base64: item.listo.base64, miniatura: item.listo.miniatura,
+      origen: item.origen, marca: item.listo.marca, aplicada: item.listo.aplicada,
+    });
+    vistasPrevias.set(ruta, item.listo.url);
+    const d = { src: ruta, ancho: item.listo.ancho, alto: item.listo.alto, color: item.listo.color };
+    if (item.listo.aplicada) d.marca = `${item.listo.aplicada.pos}-${item.listo.aplicada.color}`;
+    return d;
+  });
+  return { lista, marcadas };
+}
+
 function guardarFormulario(e) {
   e.preventDefault();
   const titulo = $("f-titulo").value.trim();
-  if (editando < 0 && !imagenElegida) {
-    $("form-error").textContent = "Falta elegir la foto.";
-    $("form-error").hidden = false;
-    return;
-  }
-  if (!titulo) {
-    $("form-error").textContent = "Falta el título.";
-    $("form-error").hidden = false;
-    return;
-  }
+  const error = t => { $("form-error").textContent = t; $("form-error").hidden = false; };
+  if (!formFotos.length) return error("Falta elegir la foto.");
+  if (!titulo) return error("Falta el título.");
 
   const anterior = editando >= 0 ? fotos[editando] : {};
+  const { lista, marcadas } = guardarFotos(titulo);
+  const [portada, ...extras] = lista;
   const datos = {
-    src: anterior.src || "",
+    ...datosFoto(portada),
     titulo,
     especie: $("f-especie").value.trim(),
     categoria: $("f-categoria").value,
@@ -693,45 +842,37 @@ function guardarFormulario(e) {
     fecha: $("f-fecha").value.trim(),
     descripcion: $("f-descripcion").value.trim(),
   };
-
-  // Tamaño de la foto: la galería lo usa para reservar el lugar y que nada salte al cargar
-  if (anterior.ancho && anterior.alto) { datos.ancho = anterior.ancho; datos.alto = anterior.alto; }
-  if (anterior.color) datos.color = anterior.color;
-  if (anterior.marca) datos.marca = anterior.marca;   // "arriba-clara": evita marcarla dos veces
-
-  let mensaje = editando >= 0 ? `Editar foto "${titulo}"` : `Agregar foto "${titulo}"`;
-  if (imagenElegida) {
-    // misma ruta al marcar una foto existente: así su link para compartir no cambia
-    const ruta = reemplazaRuta ? rutaRepo(anterior.src) : rutaNueva(titulo);
-    const publicada = reemplazaRuta && esPublicada(ruta);
-    if (publicada && !imagenElegida.aplicada) {
-      // publicada + "Sin marca": queda como estaba
-      imagenesNuevas.delete(ruta);
-      vistasPrevias.delete(ruta);
-      delete datos.marca;
-    } else {
-      imagenesNuevas.set(ruta, {
-        base64: imagenElegida.base64, miniatura: imagenElegida.miniatura,
-        origen: imagenElegida.origen, marca: imagenElegida.marca, aplicada: imagenElegida.aplicada,
-      });
-      vistasPrevias.set(ruta, imagenElegida.url);
-      datos.src = ruta;
-      datos.ancho = imagenElegida.ancho;
-      datos.alto = imagenElegida.alto;
-      datos.color = imagenElegida.color;
-      if (imagenElegida.aplicada) datos.marca = `${imagenElegida.aplicada.pos}-${imagenElegida.aplicada.color}`;
-      else delete datos.marca;
-      if (publicada) mensaje = `Poner marca de agua a "${titulo}"`;
-    }
+  if (extras.length) datos.extras = extras.map(datosFoto);
+  // El link de una publicación ya publicada no cambia aunque se cambie la portada
+  if (editando >= 0 && (anterior.id || esPublicada(anterior.src))) {
+    const id = idDe(anterior);
+    if (id !== idDe(datos)) datos.id = id;
   }
 
+  const soloMarca = editando >= 0 && marcadas > 0 && JSON.stringify({ ...anterior, extras: undefined, src: undefined, marca: undefined, ancho: undefined, alto: undefined, color: undefined })
+    === JSON.stringify({ ...datos, extras: undefined, src: undefined, marca: undefined, ancho: undefined, alto: undefined, color: undefined });
   if (editando >= 0) {
     fotos[editando] = datos;
+    cambios.push(soloMarca ? `Poner marca de agua a "${titulo}"` : `Editar "${titulo}"`);
   } else {
     fotos.unshift(datos);   // las nuevas aparecen primero en la galería
+    cambios.push(extras.length ? `Agregar "${titulo}" (${lista.length} fotos)` : `Agregar foto "${titulo}"`);
   }
-  cambios.push(mensaje);
 
+  $("dialogo").close();
+  render();
+}
+
+/* Unir esta publicación con otra: sus fotos pasan al final de la otra */
+function unirConOtra() {
+  const destino = Number($("unir-destino").value);
+  const origen = fotos[editando];
+  if (!origen || !fotos[destino]) return;
+  const otra = fotos[destino];
+  if (!confirm(`¿Pasar las ${fotosDe(origen).length} foto(s) de "${origen.titulo || "esta publicación"}" a "${otra.titulo || "la otra"}"? Esta publicación se elimina (el texto que queda es el de "${otra.titulo || "la otra"}").`)) return;
+  otra.extras = [...(otra.extras || []), ...fotosDe(origen).map(datosFoto)];
+  fotos.splice(editando, 1);
+  cambios.push(`Unir "${origen.titulo || "foto"}" con "${otra.titulo || "foto"}"`);
   $("dialogo").close();
   render();
 }
@@ -771,6 +912,10 @@ async function agregarVarias() {
   const elegidos = [...$("archivos-varios").files];
   $("archivos-varios").value = "";
   if (!elegidos.length) return;
+  // ¿Es un carrusel (un solo posteo) o son fotos de animales distintos?
+  const mismoAnimal = elegidos.length > 1 && confirm(
+    `¿Las ${elegidos.length} fotos son del mismo animal (una sola publicación, como un carrusel de Instagram)?\n\n` +
+    "Aceptar: van juntas, en el orden en que las elegiste (la primera es la portada).\nCancelar: cada foto va por separado.");
   const nuevas = [], fallaron = [];
   for (const [n, archivo] of elegidos.entries()) {
     aviso(`Preparando ${n + 1} de ${elegidos.length}…`, false, true);
@@ -785,13 +930,24 @@ async function agregarVarias() {
                       ancho: imagen.ancho, alto: imagen.alto, color: imagen.color };
       if (imagen.aplicada) nueva.marca = `${imagen.aplicada.pos}-${imagen.aplicada.color}`;
       nuevas.push(nueva);
-      cambios.push(`Agregar foto "${titulo || archivo.name}"`);
     } catch {
       fallaron.push(archivo.name);
     }
   }
+  if (mismoAnimal && nuevas.length > 1) {
+    const [portada, ...resto] = nuevas;
+    portada.extras = resto.map(datosFoto);
+    nuevas.length = 1;
+    cambios.push(`Agregar "${portada.titulo || "foto"}" (${resto.length + 1} fotos)`);
+  } else {
+    nuevas.forEach(f => cambios.push(`Agregar foto "${f.titulo || f.src.split("/").pop()}"`));
+  }
   fotos.unshift(...nuevas);   // quedan primeras, en el orden en que se eligieron
   render();
+  if (mismoAnimal && nuevas.length === 1) {
+    aviso(`Se agregó una publicación con ${fotosDe(nuevas[0]).length} fotos. Completá sus datos con "Editar" y después tocá Publicar.`, fallaron.length > 0);
+    return;
+  }
   aviso(fallaron.length
     ? `Se agregaron ${nuevas.length}. No se pudieron leer: ${fallaron.join(", ")} (probá con JPG o PNG).`
     : `Se agregaron ${nuevas.length} fotos, con la marca de agua. Completá sus datos con "Editar" (ahí podés cambiar la marca) y después tocá Publicar.`, fallaron.length > 0);
@@ -907,6 +1063,8 @@ $("form-sobre").addEventListener("submit", guardarSobre);
 $("btn-cancelar").addEventListener("click", () => $("dialogo").close());
 $("archivo").addEventListener("change", alElegirArchivo);
 $("btn-poner-marca").addEventListener("click", ponerMarcaExistente);
+$("extras-archivo").addEventListener("change", alAgregarExtras);
+$("btn-unir").addEventListener("click", unirConOtra);
 document.querySelectorAll('input[name="marca-pos"], input[name="marca-color"]')
   .forEach(r => r.addEventListener("change", actualizarMarca));
 $("form-foto").addEventListener("submit", guardarFormulario);
