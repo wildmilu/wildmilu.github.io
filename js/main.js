@@ -296,13 +296,28 @@ document.addEventListener("pointerdown", e => { usandoTeclado = false; ultimoPun
 /* ---- Tamaño y posición de una foto dentro del visor ----
    Se calcula con el ancho/alto de fotos.json, así se sabe dónde va a quedar
    antes de que cargue (lo usan las animaciones). */
+// Celular acostado (poca altura): foto a la izquierda y texto a la derecha
+const MQ_APAISADO = window.matchMedia("(orientation: landscape) and (max-height: 540px)");
+const apaisado = () => MQ_APAISADO.matches;
+// Ancho de la columna de la foto (en apaisado, lo que deja el texto a la derecha)
+function anchoColumnaFoto() {
+  if (!apaisado()) return lbContenido.clientWidth || window.innerWidth;
+  const gap = parseFloat(getComputedStyle(lbContenido).columnGap) || 0;
+  return Math.max(120, lbMeta.offsetLeft - gap);
+}
+
 function tamanoEnVisor(foto) {
-  const maxAncho = lbContenido.clientWidth || window.innerWidth;
+  const maxAncho = anchoColumnaFoto();
   // la foto entra entera junto con sus textos (la descripción larga va en "Leer más")
   const estilo = getComputedStyle(lightbox);
-  const libre = window.innerHeight - parseFloat(estilo.paddingTop) - parseFloat(estilo.paddingBottom)
-    - (parseFloat(getComputedStyle(lbContenido).rowGap) || 0) - lbMeta.offsetHeight;
-  const maxAlto = Math.max(window.innerHeight * 0.35, Math.min(window.innerHeight * 0.72, libre));
+  const alturaUtil = window.innerHeight - parseFloat(estilo.paddingTop) - parseFloat(estilo.paddingBottom);
+  const asomos = 2 * asomoDe(fichaActual());              // lugar para la cinta (si hay varias fotos)
+  let maxAlto;
+  if (apaisado()) maxAlto = Math.max(80, alturaUtil - asomos);
+  else {
+    const libre = alturaUtil - (parseFloat(getComputedStyle(lbContenido).rowGap) || 0) - lbMeta.offsetHeight - asomos;
+    maxAlto = Math.max(window.innerHeight * 0.3, Math.min(window.innerHeight * 0.72, libre));
+  }
   const prop = proporcion(foto);
   let ancho = Math.min(maxAncho, foto.ancho || maxAncho), alto = ancho * prop;
   if (alto > maxAlto) { alto = maxAlto; ancho = alto / prop; }
@@ -330,6 +345,13 @@ function rectEnVisor(foto, ficha) {
   const separacion = parseFloat(getComputedStyle(lbContenido).rowGap) || 0;
   const disponible = window.innerHeight - arriba - abajo;
   const marco = lbContenido.getBoundingClientRect();
+  if (apaisado()) {   // foto a la izquierda, centrada en su columna y en la altura
+    return {
+      left: marco.left + (anchoColumnaFoto() - ancho) / 2,
+      top: arriba + (disponible - caja) / 2 + a + (caja - 2 * a - alto) / 2,
+      width: ancho, height: alto,
+    };
+  }
   return {
     left: marco.left + (marco.width - ancho) / 2,
     top: arriba + (disponible - (caja + separacion + lbMeta.offsetHeight)) / 2 + a + (caja - 2 * a - alto) / 2,
@@ -347,7 +369,28 @@ function ajustarTamano() {
   const a = asomoDe(fichaActual());
   lbImg.style.marginTop = lbImg.style.marginBottom = margen + a + "px";
 }
-window.addEventListener("resize", () => { if (visorAbierto()) { reiniciarZoom(false); ajustarTamano(); } });
+// Al girar el celu o cambiar el tamaño de la ventana, todo se vuelve a acomodar
+// (dos veces: iOS avisa la rotación antes de tener el tamaño final)
+let esperaReacomodo = null;
+function reacomodar() {
+  if (!visorAbierto() || animando) return;
+  detenerCinta();
+  reiniciarZoom(false);
+  if (ladoVecina) { lbVecina.hidden = true; ladoVecina = 0; posVecina = null; }
+  for (const el of [lbImg, lbContenido]) { el.style.transition = "none"; el.style.transform = ""; }
+  lbImg.style.visibility = "";
+  ajustarTamano();
+  armarCinta();
+}
+function alCambiarTamano() {
+  if (!visorAbierto()) return;
+  requestAnimationFrame(reacomodar);
+  clearTimeout(esperaReacomodo);
+  esperaReacomodo = setTimeout(reacomodar, 350);
+}
+window.addEventListener("resize", alCambiarTamano);
+window.addEventListener("orientationchange", alCambiarTamano);
+MQ_APAISADO.addEventListener("change", alCambiarTamano);
 
 // Transformación que lleva el rectángulo "desde" a ocupar el rectángulo "hasta"
 function transformacion(desde, hasta) {
@@ -609,7 +652,8 @@ function armarCinta() {
   const imgTop = lbImg.offsetTop, imgAlto = lbImg.offsetHeight;
   const margen = parseFloat(lbImg.style.marginTop) || 0;
   const ventanaTop = imgTop - margen;                       // incluye el asomo de arriba
-  Object.assign(lbVentana.style, { top: ventanaTop + "px", height: margen * 2 + imgAlto + "px" });
+  const ancho = anchoColumnaFoto();
+  Object.assign(lbVentana.style, { top: ventanaTop + "px", height: margen * 2 + imgAlto + "px", width: ancho + "px" });
   // centros de cada foto, una debajo de la otra (la actual, en el centro de la ventana)
   const tam = fotos.map(f => tamanoEnVisor(f));
   const centro = new Array(fotos.length);
@@ -617,7 +661,6 @@ function armarCinta() {
   for (let k = subActual + 1; k < fotos.length; k++) centro[k] = centro[k - 1] + tam[k - 1].alto / 2 + SEP_CINTA + tam[k].alto / 2;
   for (let k = subActual - 1; k >= 0; k--) centro[k] = centro[k + 1] - tam[k + 1].alto / 2 - SEP_CINTA - tam[k].alto / 2;
   const off = centro.map(c => c - centro[subActual]);
-  const ancho = lbContenido.clientWidth;
   const items = fotos.map((f, k) => {
     const im = imgCinta(f);
     im.dataset.k = k;
