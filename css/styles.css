@@ -207,15 +207,20 @@ img { display: block; max-width: 100%; }
 .lightbox { touch-action: none; overscroll-behavior: contain; }
 .lightbox { overflow: hidden; }   /* las fotos que entran y salen no generan scroll */
 .lightbox__contenido { will-change: transform; position: relative; }
-/* Fotos del mismo animal apiladas detrás de la actual (modo vertical) */
-.lightbox__pila {
-  position: absolute; z-index: 0; object-fit: cover; border-radius: var(--radio);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); cursor: pointer; user-select: none; -webkit-user-drag: none;
+/* Cinta vertical: fotos del mismo animal (asoman la anterior arriba y la siguiente abajo) */
+.lightbox__ventana {
+  position: absolute; left: 0; right: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  transition: opacity 0.25s ease;
 }
-.lightbox__pila[hidden] { display: none; }
-.lightbox.transicion .lightbox__pila,
-.lightbox.ampliado .lightbox__pila,
-.lightbox__contenido.entrando .lightbox__pila { opacity: 0 !important; }
+.lightbox__ventana[hidden] { display: none; }
+.lightbox__cinta { position: absolute; inset: 0; will-change: transform; }
+.lightbox__vecina-v {
+  position: absolute; object-fit: cover; border-radius: var(--radio); will-change: transform, opacity;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-user-drag: none;
+}
+.lightbox.transicion .lightbox__ventana,
+.lightbox.ampliado .lightbox__ventana,
+.lightbox__contenido.entrando .lightbox__ventana { opacity: 0; }
 .lightbox__pista {
   font-size: 0.78rem; letter-spacing: 0.3px; opacity: 0.6; margin: -0.2rem 0 0.5rem;
   animation: pista 2.4s ease-in-out infinite;
