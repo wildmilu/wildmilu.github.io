@@ -234,7 +234,7 @@ if args.prueba:
 <style>
   .franja-prueba { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; height: 26px;
     display: flex; align-items: center; justify-content: center; gap: .3rem;
-    background: #c1663f; color: #fff; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .3px; }
+    background: #a8532f; color: #fff; font: 600 12px/1 system-ui, sans-serif; letter-spacing: .3px; }
   .franja-prueba a { color: #fff; }
   @media (max-width: 700px) { .franja-prueba .franja-largo { display: none; } }
   body { padding-top: 26px; }
