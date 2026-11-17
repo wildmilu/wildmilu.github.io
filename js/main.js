@@ -727,8 +727,7 @@ function soltarVertical(velY) {
   let k = masCercana(proyectado);
   // un deslizón corto pero decidido pasa a la vecina…
   if (k === aca && Math.abs(velY) > 0.35) k = aca + (velY < 0 ? 1 : -1);
-  // …y nunca salta más de una foto de golpe (como en Instagram), salvo que el dedo la haya llevado más lejos
-  k = Math.max(Math.min(subActual - 1, aca), Math.min(Math.max(subActual + 1, aca), k));
+  // (un deslizón fuerte puede pasar varias fotos: la cinta sigue por la inercia)
   irEnCinta(Math.max(0, Math.min(cinta.items.length - 1, k)), velY);
 }
 
