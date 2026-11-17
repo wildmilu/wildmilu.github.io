@@ -314,7 +314,7 @@ const vertical = () => MODO_CARRUSEL === "vertical";
 
 // Cinta vertical con las fotos del mismo animal: se ve la actual y asoman la
 // anterior (arriba) y la siguiente (abajo). Todo se mueve con transform (fluido).
-const ASOMO = () => (window.innerWidth <= 700 ? 30 : 40);   // cuánto lugar queda arriba y abajo
+const ASOMO = () => (window.innerWidth <= 700 ? 30 : 56);   // cuánto lugar queda arriba y abajo
 const SEP_CINTA = 12;                                         // espacio entre una foto y la otra
 const ESC_VECINA = 0.84, LUZ_VECINA = 0.4;                    // las de los costados: más chicas y apagadas ("atrás")
 const lbVentana = document.createElement("div");
@@ -718,6 +718,7 @@ function imgCinta(foto) {
     im = document.createElement("img");
     im.className = "lightbox__vecina-v";
     im.alt = "";
+    im.title = "Ver esta foto";
     im.decoding = "sync";
     im.draggable = false;
     im.addEventListener("click", () => { const k = Number(im.dataset.k); if (k !== subActual) irAFoto(k); });
@@ -770,8 +771,10 @@ function armarCinta() {
   // Pista para descubrirlo (en el celu, hasta que lo use una vez)
   let usada = false;
   try { usada = localStorage.getItem("wildmilu-pila-usada") === "1"; } catch {}
-  lbPista.hidden = usada || !window.matchMedia("(hover: none)").matches;
-  lbPista.textContent = `Deslizá hacia arriba para ver las ${fotos.length} fotos`;
+  const tactil = window.matchMedia("(hover: none)").matches;
+  lbPista.hidden = usada;
+  lbPista.textContent = tactil ? `↑ Deslizá hacia arriba para ver las ${fotos.length} fotos`
+                               : `Ruedita del mouse o ↓ para ver las ${fotos.length} fotos`;
 }
 function pilaUsada() {
   try { localStorage.setItem("wildmilu-pila-usada", "1"); } catch {}
@@ -784,6 +787,8 @@ function dibujarCinta(d) {
   lbCinta.style.transform = `translate3d(0, ${d}px, 0)`;
   for (const it of cinta.items) {
     const t = Math.min(1, Math.abs(it.off + d) / it.paso);
+    // se achica desde el borde que mira a la del centro: así el pedacito que asoma no se esconde
+    it.im.style.transformOrigin = it.off + d >= 0 ? "50% 0" : "50% 100%";
     it.im.style.transform = `scale(${mezclar(1, ESC_VECINA, t)})`;
     it.im.style.opacity = mezclar(1, LUZ_VECINA, t);
   }
@@ -1122,6 +1127,34 @@ window.addEventListener("pointerup", e => {
   lightbox.classList.remove("moviendo");
 });
 // Pellizcar en el trackpad (llega como rueda + Ctrl)
+/* Ruedita / touchpad: recorre la cinta de fotos del mismo animal.
+   - Mouse con ruedita (saltos grandes): cada "clic" pasa una foto.
+   - Touchpad (movimientos chicos y seguidos): la cinta sigue a los dedos y,
+     al soltar, frena en la foto más cercana. */
+let ruedaUltimoPaso = 0, ruedaFin = null;
+lightbox.addEventListener("wheel", e => {
+  if (e.ctrlKey || !visorAbierto() || hojaAbierta() || ampliada()) return;   // Ctrl+rueda = zoom (abajo)
+  if (!vertical() || !cinta || animando) return;
+  e.preventDefault();
+  const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;                   // a veces llega en "líneas"
+  const ruedita = e.deltaMode !== 0 || Math.abs(dy) >= 50;
+  if (ruedita) {
+    const ahora = performance.now();
+    if (ahora - ruedaUltimoPaso < 160) return;                                // un clic = una foto
+    ruedaUltimoPaso = ahora;
+    pasoVertical(Math.sign(dy));
+    return;
+  }
+  detenerCinta();
+  lbImg.style.visibility = "hidden";
+  let d = cintaD - dy;
+  if (d > cinta.max) d = cinta.max + (d - cinta.max) * 0.3;                  // en los extremos, resiste
+  if (d < cinta.min) d = cinta.min + (d - cinta.min) * 0.3;
+  dibujarCinta(d);
+  clearTimeout(ruedaFin);
+  ruedaFin = setTimeout(() => irEnCinta(masCercana(cintaD)), 140);          // soltó: frena en la más cercana
+}, { passive: false });
+
 lightbox.addEventListener("wheel", e => {
   if (!e.ctrlKey || !visorAbierto()) return;
   e.preventDefault();

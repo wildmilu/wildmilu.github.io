@@ -262,7 +262,6 @@ img { display: block; max-width: 100%; }
   font-size: 0.78rem; letter-spacing: 0.3px; opacity: 0.6; margin: -0.2rem 0 0.5rem;
   animation: pista 2.4s ease-in-out infinite;
 }
-.lightbox__pista::before { content: "↑ "; }
 .lightbox__pista[hidden] { display: none; }
 @keyframes pista { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .lightbox__vecina {
