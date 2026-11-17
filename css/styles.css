@@ -206,7 +206,23 @@ img { display: block; max-width: 100%; }
    scrollea la página de atrás ni "se queda" con el arrastre */
 .lightbox { touch-action: none; overscroll-behavior: contain; }
 .lightbox { overflow: hidden; }   /* las fotos que entran y salen no generan scroll */
-.lightbox__contenido { will-change: transform; }
+.lightbox__contenido { will-change: transform; position: relative; }
+/* Fotos del mismo animal apiladas detrás de la actual (modo vertical) */
+.lightbox__pila {
+  position: absolute; z-index: 0; object-fit: cover; border-radius: var(--radio);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); cursor: pointer; user-select: none; -webkit-user-drag: none;
+}
+.lightbox__pila[hidden] { display: none; }
+.lightbox.transicion .lightbox__pila,
+.lightbox.ampliado .lightbox__pila,
+.lightbox__contenido.entrando .lightbox__pila { opacity: 0 !important; }
+.lightbox__pista {
+  font-size: 0.78rem; letter-spacing: 0.3px; opacity: 0.6; margin: -0.2rem 0 0.5rem;
+  animation: pista 2.4s ease-in-out infinite;
+}
+.lightbox__pista::before { content: "↑ "; }
+.lightbox__pista[hidden] { display: none; }
+@keyframes pista { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .lightbox__vecina {
   position: fixed; z-index: 1; object-fit: cover; border-radius: var(--radio);
   pointer-events: none; will-change: transform;
@@ -387,4 +403,5 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
 @media (prefers-reduced-motion: reduce) {
   .card img, .galeria, .lightbox, .lightbox__meta, .arriba { transition: none !important; }
   .lightbox__hoja, .hoja__caja { animation: none !important; }
+  .lightbox__pista { animation: none !important; }
 }

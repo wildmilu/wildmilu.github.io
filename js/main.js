@@ -238,6 +238,36 @@ const lbVecina    = document.getElementById("lb-vecina");
 const lbPuntos    = document.getElementById("lb-puntos");
 const lbLugar     = document.getElementById("lb-lugar");
 const lbMas       = document.getElementById("lb-mas");
+
+/* Cómo se recorren las fotos del mismo animal:
+   - "vertical": apiladas (asoma la de atrás); ↑ la siguiente, ↓ la anterior,
+     ↓ en la primera cierra; ↔ cambia de animal.
+   - "horizontal": como un carrusel de Instagram (↔ recorre todo).
+   Para comparar: ?carrusel=vertical o ?carrusel=horizontal (queda guardado). */
+const MODO_CARRUSEL = (() => {
+  const pedido = new URLSearchParams(location.search).get("carrusel");
+  try { if (pedido) localStorage.setItem("wildmilu-carrusel", pedido); } catch {}
+  let guardado = pedido;
+  try { guardado = guardado || localStorage.getItem("wildmilu-carrusel"); } catch {}
+  return guardado === "horizontal" ? "horizontal" : "vertical";
+})();
+const vertical = () => MODO_CARRUSEL === "vertical";
+
+// Las fotos de atrás: cuánto se achican, cuánto asoman por debajo y qué tan oscuras se ven
+const PILA = [{ s: 0.92, asomo: 12, luz: 0.55 }, { s: 0.84, asomo: 22, luz: 0.35 }];
+const lbPilas = PILA.map(() => {
+  const im = document.createElement("img");
+  im.className = "lightbox__pila";
+  im.alt = "";
+  im.hidden = true;
+  im.decoding = "async";
+  lbContenido.insertBefore(im, lbContenido.firstChild);
+  return im;
+});
+const lbPista = document.createElement("p");
+lbPista.className = "lightbox__pista";
+lbPista.hidden = true;
+lbMeta.insertBefore(lbPista, lbMeta.firstChild);
 const lbHoja      = document.getElementById("lb-hoja");
 
 const DURACION = 320;                              // ms de las animaciones
@@ -290,10 +320,16 @@ function altoCaja(ficha) {
   return Math.max(...fotosDe(ficha).map(f => tamanoEnVisor(f).alto));
 }
 
+// Lugar que queda debajo de la foto para que asomen las de atrás (modo vertical)
+function espacioPila(ficha) {
+  const n = fotosDe(ficha).length;
+  return vertical() && n > 1 ? PILA[Math.min(n, 3) - 2].asomo + 2 : 0;
+}
+
 // Rectángulo en pantalla que ocuparía la foto (centrada junto con sus textos)
 function rectEnVisor(foto, ficha) {
   const { ancho, alto } = tamanoEnVisor(foto);
-  const caja = Math.max(alto, altoCaja(ficha));
+  const caja = Math.max(alto, altoCaja(ficha)) + espacioPila(ficha);
   const estilo = getComputedStyle(lightbox);
   const arriba = parseFloat(estilo.paddingTop), abajo = parseFloat(estilo.paddingBottom);
   const separacion = parseFloat(getComputedStyle(lbContenido).rowGap) || 0;
@@ -301,7 +337,7 @@ function rectEnVisor(foto, ficha) {
   const marco = lbContenido.getBoundingClientRect();
   return {
     left: marco.left + (marco.width - ancho) / 2,
-    top: arriba + (disponible - (caja + separacion + lbMeta.offsetHeight)) / 2 + (caja - alto) / 2,
+    top: arriba + (disponible - (caja + separacion + lbMeta.offsetHeight)) / 2 + (caja - espacioPila(ficha) - alto) / 2,
     width: ancho, height: alto,
   };
 }
@@ -313,7 +349,8 @@ function ajustarTamano() {
   const margen = (Math.max(alto, altoCaja(fichaActual())) - alto) / 2;
   lbImg.style.width = ancho + "px";
   lbImg.style.height = alto + "px";
-  lbImg.style.marginTop = lbImg.style.marginBottom = margen + "px";
+  lbImg.style.marginTop = margen + "px";
+  lbImg.style.marginBottom = margen + espacioPila(fichaActual()) + "px";
 }
 window.addEventListener("resize", () => { if (visorAbierto()) { reiniciarZoom(false); ajustarTamano(); } });
 
@@ -376,6 +413,7 @@ function abrirLightbox(indice, { desdeLink = false, sub = 0 } = {}) {
 async function ocultarLightbox() {
   if (!lightbox.classList.contains("abierto") || cerrando) return;
   cerrando = true;
+  fichaConPila = null;          // al volver a abrir, la pila "se abre" de nuevo
   lbHoja.hidden = true;
   limpiarHoja();
   const foto = fotosVisibles[indiceActual];
@@ -478,6 +516,7 @@ function mostrarFoto() {
   lbMas.hidden = lbDetalle.hidden || lbDetalle.scrollHeight <= lbDetalle.clientHeight + 1;
   lbContador.textContent = `${indiceActual + 1} / ${fotosVisibles.length}`;
   ajustarTamano();              // con los textos ya puestos: sabe cuánto lugar queda para la foto
+  colocarPila();
   precargarVecinas();
 }
 
@@ -515,12 +554,188 @@ function actualizarDireccion() {
 /* Baja por adelantado la foto siguiente y la anterior: al deslizar aparecen al instante */
 const precargadas = new Set();
 function precargarVecinas() {
-  [1, -1].forEach(d => {
-    const vecina = fotoEn(posicionVecina(d));
+  const mismas = vertical() ? [1, -1].map(d => fotosDe(fichaActual())[subActual + d]) : [];
+  [1, -1].map(d => fotoEn(posicionVecina(d))).concat(mismas).forEach(vecina => {
     const ruta = vecina && normalizarRuta(vecina.src);
     if (ruta && !precargadas.has(ruta)) { precargadas.add(ruta); new Image().src = ruta; }
   });
 }
+
+/* ---------- Pila de fotos del mismo animal (modo vertical) ---------- */
+const mezclar = (a, b, p) => a + (b - a) * p;
+const mezclarRect = (a, b, p) => ({ left: mezclar(a.left, b.left, p), top: mezclar(a.top, b.top, p), width: mezclar(a.width, b.width, p), height: mezclar(a.height, b.height, p) });
+const vistaDe = foto => { const g = normalizarRuta(foto.src); return precargadas.has(g) ? g : rutaMiniatura(foto.src); };
+
+// Foto actual, en coordenadas dentro del visor
+function rectActual() {
+  return { left: lbImg.offsetLeft, top: lbImg.offsetTop, width: lbImg.offsetWidth, height: lbImg.offsetHeight };
+}
+// La foto de atrás número k (1 o 2): más chica y asomando por debajo de la actual
+function rectPila(k, base = rectActual()) {
+  const { s, asomo } = PILA[k - 1];
+  const w = base.width * s, h = base.height * s;
+  return { left: base.left + (base.width - w) / 2, top: base.top + base.height + asomo - h, width: w, height: h };
+}
+// Dónde va a quedar una foto del mismo animal cuando pase adelante
+function rectFinal(foto) {
+  const { ancho, alto } = tamanoEnVisor(foto);
+  const cajaTop = lbImg.offsetTop - parseFloat(lbImg.style.marginTop || 0);
+  const caja = Math.max(alto, altoCaja(fichaActual()));
+  return { left: (lbContenido.clientWidth - ancho) / 2, top: cajaTop + (caja - alto) / 2, width: ancho, height: alto };
+}
+function ubicar(el, r, luz, opacidad = 1) {
+  Object.assign(el.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px",
+    filter: `brightness(${luz})`, opacity: opacidad });
+}
+function sinTransicion(...els) { els.forEach(el => { el.style.transition = "none"; }); }
+function conTransicion(ms, ...els) {
+  els.forEach(el => { el.style.transition = ["left", "top", "width", "height", "filter", "opacity", "transform"].map(p => `${p} ${ms}ms ${CURVA}`).join(", "); });
+}
+
+// Pone las fotos de atrás en su lugar (y la primera vez que se ve el animal, "se abren" desde atrás)
+let fichaConPila = null;
+function colocarPila() {
+  const fotos = fotosDe(fichaActual());
+  const base = rectActual();
+  const nueva = fichaConPila !== fichaActual();
+  fichaConPila = fichaActual();
+  lbPilas.forEach((im, i) => {
+    const foto = vertical() ? fotos[subActual + i + 1] : null;
+    im.hidden = !foto;
+    if (!foto) return;
+    if (!im.src.endsWith(vistaDe(foto))) im.src = vistaDe(foto);
+    sinTransicion(im);
+    im.style.transform = "";
+    if (nueva && !sinMovimiento.matches) {
+      ubicar(im, base, PILA[i].luz, 0);          // arranca escondida detrás de la actual…
+      im.getBoundingClientRect();
+      conTransicion(420 + i * 90, im);            // …y asoma
+    }
+    ubicar(im, rectPila(i + 1, base), PILA[i].luz);
+  });
+  // Pista para descubrirlo (en el celu, hasta que lo use una vez)
+  let usada = false;
+  try { usada = localStorage.getItem("wildmilu-pila-usada") === "1"; } catch {}
+  lbPista.hidden = !vertical() || fotos.length < 2 || usada || !window.matchMedia("(hover: none)").matches;
+  lbPista.textContent = `Deslizá hacia arriba para ver las ${fotos.length} fotos`;
+}
+function pilaUsada() {
+  try { localStorage.setItem("wildmilu-pila-usada", "1"); } catch {}
+  lbPista.hidden = true;
+}
+
+/* Gesto vertical: "siguiente" (↑), "anterior" (↓ desde la 2.ª en adelante),
+   "cerrar" (↓ en la primera) o "rebote" (↑ en la última) */
+let vert = null;
+function empezarVertical(dy) {
+  const n = fotosDe(fichaActual()).length;
+  if (!vertical() || n < 2) return { tipo: "cerrar" };
+  if (dy < 0) return { tipo: subActual < n - 1 ? "siguiente" : "rebote" };
+  if (subActual === 0) return { tipo: "cerrar" };
+  // "anterior": la foto anterior baja desde arriba y la actual vuelve a la pila
+  const prev = fotosDe(fichaActual())[subActual - 1];
+  const r = rectEnVisor(prev, fichaActual());
+  lbVecina.src = vistaDe(prev);
+  Object.assign(lbVecina.style, { width: r.width + "px", height: r.height + "px", left: r.left + "px", top: r.top + "px", filter: "", opacity: 1 });
+  lbVecina.hidden = false;
+  const v = { tipo: "anterior", base: rectActual(), salto: r.top + r.height + 40 };
+  sinTransicion(lbVecina, lbImg, ...lbPilas);
+  lbImg.style.transformOrigin = "50% 100%";
+  return v;
+}
+
+function moverVertical(dy) {
+  const v = vert, base = v.base || rectActual();
+  v.base = base;
+  if (v.tipo === "rebote") { sinTransicion(lbImg); lbImg.style.transform = `translateY(${Math.max(dy, -60) * 0.3}px)`; return; }
+  if (v.tipo === "siguiente") {
+    v.p = Math.min(1, Math.max(0, -dy / (base.height * 0.75)));
+    const sig = fotosDe(fichaActual())[subActual + 1];
+    v.final = v.final || rectFinal(sig);
+    sinTransicion(lbImg, ...lbPilas);
+    lbImg.style.transform = `translateY(${Math.min(0, dy)}px)`;
+    ubicar(lbPilas[0], mezclarRect(rectPila(1, base), v.final, v.p), mezclar(PILA[0].luz, 1, v.p));
+    if (!lbPilas[1].hidden) ubicar(lbPilas[1], mezclarRect(rectPila(2, base), rectPila(1, base), v.p), mezclar(PILA[1].luz, PILA[0].luz, v.p));
+    return;
+  }
+  // anterior
+  v.p = Math.min(1, Math.max(0, dy / (base.height * 0.75)));
+  lbVecina.style.transform = `translateY(${(v.p - 1) * v.salto}px)`;
+  lbImg.style.transform = `translateY(${PILA[0].asomo * v.p}px) scale(${mezclar(1, PILA[0].s, v.p)})`;
+  lbImg.style.filter = `brightness(${mezclar(1, PILA[0].luz, v.p)})`;
+  if (!lbPilas[0].hidden) ubicar(lbPilas[0], mezclarRect(rectPila(1, base), rectPila(2, base), v.p), mezclar(PILA[0].luz, PILA[1].luz, v.p));
+  if (!lbPilas[1].hidden) lbPilas[1].style.opacity = 1 - v.p;
+}
+
+// Suelta el dedo: pasa si se movió bastante o fue un deslizón rápido; si no, vuelve
+function soltarVertical(velY) {
+  const v = vert;
+  if (v.tipo === "rebote") { conTransicion(250, lbImg); lbImg.style.transform = ""; return; }
+  const pasa = v.p > 0.25 || (v.tipo === "siguiente" ? velY < -0.4 : velY > 0.4);
+  if (pasa) completarVertical(v.tipo === "siguiente" ? 1 : -1, v);
+  else volverVertical(v);
+}
+
+async function completarVertical(dir, v) {
+  animando = true;
+  pilaUsada();
+  const base = v.base;
+  const ms = DURACION;
+  conTransicion(ms, lbImg, lbVecina, ...lbPilas);
+  if (dir > 0) {
+    lbImg.style.transform = `translateY(${-(base.top + base.height + 120)}px)`;
+    lbImg.style.opacity = 0;
+    ubicar(lbPilas[0], v.final || rectFinal(fotosDe(fichaActual())[subActual + 1]), 1);
+    if (!lbPilas[1].hidden) ubicar(lbPilas[1], rectPila(1, base), PILA[0].luz);
+  } else {
+    lbVecina.style.transform = "translateY(0px)";
+    lbImg.style.transform = `translateY(${PILA[0].asomo}px) scale(${PILA[0].s})`;
+    lbImg.style.filter = `brightness(${PILA[0].luz})`;
+    if (!lbPilas[0].hidden) ubicar(lbPilas[0], rectPila(2, base), PILA[1].luz);
+    if (!lbPilas[1].hidden) lbPilas[1].style.opacity = 0;
+  }
+  await pausa(ms);
+  if (!visorAbierto()) { animando = false; return; }
+  subActual += dir;
+  lbImg.style.visibility = "hidden";
+  sinTransicion(lbImg, lbVecina, ...lbPilas);
+  Object.assign(lbImg.style, { transform: "", opacity: "", filter: "", transformOrigin: "" });
+  mostrarFoto();
+  actualizarDireccion();
+  try { await lbImg.decode(); } catch {}
+  lbImg.style.visibility = "";
+  lbVecina.hidden = true;
+  Object.assign(lbVecina.style, { transform: "", filter: "", opacity: "" });
+  animando = false;
+}
+
+function volverVertical(v) {
+  const base = v.base;
+  conTransicion(250, lbImg, lbVecina, ...lbPilas);
+  lbImg.style.transform = "";
+  lbImg.style.filter = "";
+  if (v.tipo === "anterior") lbVecina.style.transform = `translateY(${-v.salto}px)`;
+  if (!lbPilas[0].hidden) ubicar(lbPilas[0], rectPila(1, base), PILA[0].luz);
+  if (!lbPilas[1].hidden) ubicar(lbPilas[1], rectPila(2, base), PILA[1].luz);
+  setTimeout(() => {
+    if (animando) return;
+    if (v.tipo === "anterior") lbVecina.hidden = true;
+    Object.assign(lbImg.style, { transformOrigin: "", transition: "" });
+  }, 260);
+}
+
+// Teclado (↓ ↑) y tocar la foto de atrás
+function pasoVertical(dir) {
+  const n = fotosDe(fichaActual()).length;
+  if (!vertical() || animando || cerrando || ampliada()) return false;
+  if (dir > 0 ? subActual >= n - 1 : subActual <= 0) return false;
+  if (sinMovimiento.matches) { subActual += dir; mostrarFoto(); actualizarDireccion(); return true; }
+  const v = dir > 0 ? { tipo: "siguiente", base: rectActual() } : empezarVertical(1);
+  lbImg.getBoundingClientRect();
+  completarVertical(dir, v);
+  return true;
+}
+lbPilas[0].addEventListener("click", () => pasoVertical(1));
 
 /* Compartir: en el celular abre el menú de compartir (WhatsApp, etc.);
    en la compu copia el link */
@@ -661,6 +876,8 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape")     cerrarLightbox();
   if (e.key === "ArrowLeft")  cambiar(-1);
   if (e.key === "ArrowRight") cambiar(1);
+  if (e.key === "ArrowDown" && pasoVertical(1)) e.preventDefault();
+  if (e.key === "ArrowUp" && pasoVertical(-1)) e.preventDefault();
   // Con Tab, el foco queda dentro del visor (no se va a la página de atrás)
   if (e.key === "Tab") {
     const enfocables = [...lightbox.querySelectorAll("button")].filter(b => b.offsetParent !== null);
@@ -769,13 +986,17 @@ let posVecina = null;                         // { indice, sub, misma } de la fo
 // terminarlas, el animal siguiente (como un carrusel de Instagram).
 function posicionVecina(dir) {
   const s = subActual + dir;
-  if (s >= 0 && s < fotosDe(fichaActual()).length) return { indice: indiceActual, sub: s, misma: true };
+  if (!vertical() && s >= 0 && s < fotosDe(fichaActual()).length) return { indice: indiceActual, sub: s, misma: true };
+  if (vertical()) {   // ↔ cambia de animal y arranca en su portada
+    const n = fotosVisibles.length;
+    return { indice: (indiceActual + dir + n) % n, sub: 0, misma: false };
+  }
   const n = fotosVisibles.length;
   const indice = (indiceActual + dir + n) % n;
   return { indice, sub: dir > 0 ? 0 : fotosDe(fotosVisibles[indice]).length - 1, misma: false };
 }
 const fotoEn = p => fotosDe(fotosVisibles[p.indice])[p.sub];
-const hayVecinas = () => fotosVisibles.length > 1 || fotosDe(fichaActual()).length > 1;
+const hayVecinas = () => fotosVisibles.length > 1 || (!vertical() && fotosDe(fichaActual()).length > 1);
 // Dentro del mismo animal se corre solo la foto (el texto queda quieto); entre animales, todo
 const movil = () => (posVecina && posVecina.misma ? lbImg : lbContenido);
 const recorrido = () => window.innerWidth + SEPARACION;
@@ -867,7 +1088,11 @@ function cambiar(dir, pos = posicionVecina(dir)) {
 
 // Tocar un puntito: va directo a esa foto del animal
 function irAFoto(k) {
-  if (k === subActual) return;
+  if (k === subActual || animando) return;
+  if (vertical()) {
+    if (Math.abs(k - subActual) === 1) { pasoVertical(k - subActual); return; }
+    subActual = k; mostrarFoto(); actualizarDireccion(); return;
+  }
   cambiar(k > subActual ? 1 : -1, { indice: indiceActual, sub: k, misma: true });
 }
 
@@ -879,6 +1104,7 @@ let modo = null;                                    // "gesto" | "mover" | "pell
 let toqueX = 0, toqueY = 0, toqueT = 0, direccion = null, bajada = 0, deslizado = 0;
 let ultimoX = 0, ultimoT = 0, velocidad = 0;        // px/ms, para pases rápidos y cortos
 let inicioZoom = null, ultimoToque = null;
+let ultimoY = 0, velocidadY = 0;
 
 function moverVisor(dy, animado) {
   const t = animado ? "0.25s ease" : "0s";
@@ -905,7 +1131,7 @@ lightbox.addEventListener("touchstart", e => {
   if (animando || cerrando || hojaAbierta()) return;   // con la hoja abierta, el dedo scrollea el texto
   if (e.touches.length === 2) {                      // empieza un pellizco: se deja cualquier otro gesto
     if (modo === "gesto" && direccion === "horizontal") cancelarPase();
-    if (modo === "gesto" && direccion === "vertical") moverVisor(0, true);
+    if (modo === "gesto" && direccion === "vertical") { if (vert && vert.tipo !== "cerrar") volverVertical(vert); else moverVisor(0, true); vert = null; }
     const [a, b] = e.touches;
     modo = "pellizco";
     inicioZoom = { d: distancia(a, b), m: medio(a, b), z: { ...zoom }, b: baseZoom() };
@@ -919,8 +1145,10 @@ lightbox.addEventListener("touchstart", e => {
   toqueX = ultimoX = t.clientX;
   toqueY = t.clientY;
   ultimoT = e.timeStamp;
+  ultimoY = t.clientY;
   direccion = null;
-  bajada = deslizado = velocidad = 0;
+  vert = null;
+  bajada = deslizado = velocidad = velocidadY = 0;
 }, { passive: true });
 
 lightbox.addEventListener("touchmove", e => {
@@ -947,8 +1175,15 @@ lightbox.addEventListener("touchmove", e => {
   const dy = t.clientY - toqueY;
   if (!direccion && Math.hypot(dx, dy) > 10) direccion = Math.abs(dy) > Math.abs(dx) ? "vertical" : "horizontal";
   if (direccion === "vertical") {
-    bajada = Math.max(0, dy);                         // solo hacia abajo
-    moverVisor(bajada, false);
+    if (!vert) vert = empezarVertical(dy);
+    const dt = e.timeStamp - ultimoT;
+    if (dt > 0) velocidadY = 0.8 * ((t.clientY - ultimoY) / dt) + 0.2 * velocidadY;
+    ultimoY = t.clientY;
+    ultimoT = e.timeStamp;
+    if (vert.tipo === "cerrar") {
+      bajada = Math.max(0, dy);                       // solo hacia abajo
+      moverVisor(bajada, false);
+    } else moverVertical(dy);
   } else if (direccion === "horizontal" && hayVecinas()) {
     deslizado = dx;
     arrastrarHorizontal(dx);
@@ -989,11 +1224,14 @@ lightbox.addEventListener("touchend", e => {
     } else {
       cancelarPase();
     }
+  } else if (direccion === "vertical" && vert && vert.tipo !== "cerrar") {
+    soltarVertical(velocidadY);
   } else if (direccion === "vertical") {
     if (bajada > 110) cerrarLightbox();               // vuelve volando a su lugar en la galería
     else moverVisor(0, true);                         // no llegó: vuelve a su lugar
   }
   direccion = null;
+  vert = null;
 }, { passive: true });
 
 // Dos toques rápidos sobre la foto: ampliar ahí (o volver a ver la foto entera)
@@ -1008,9 +1246,10 @@ function dobleToque(t, e) {
 // Si el sistema interrumpe el gesto (llamada, notificación...), todo vuelve a su lugar
 lightbox.addEventListener("touchcancel", () => {
   if (modo === "gesto" && direccion === "horizontal") cancelarPase();
+  else if (modo === "gesto" && vert && vert.tipo !== "cerrar") volverVertical(vert);
   else if (modo === "gesto") moverVisor(0, true);
   else if (modo === "pellizco") { zoom = limitar(zoom, baseZoom()); aplicarZoom(true); }
-  modo = direccion = null;
+  modo = direccion = vert = null;
 });
 
 /* ---------- Volver arriba (aparece al bajar mucho por la galería) ---------- */
