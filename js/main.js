@@ -35,6 +35,58 @@ function rutaMiniatura(src) {
   return ruta.startsWith("images/") ? ruta.replace("images/", "images/thumbs/") : ruta;
 }
 
+/* Versiones livianas (WebP) que arma la publicación: images/v/<nombre>-<ancho>.webp.
+   "foto.v" dice qué anchos existen; se pide la más chica que alcance para la
+   pantalla. Si no hay (o falla), se usa el JPG de siempre. */
+const PIXELES = window.devicePixelRatio || 1;
+function variante(foto, anchoEnPantalla, maxDensidad = 3) {
+  const vs = foto && Array.isArray(foto.v) ? foto.v : null;
+  if (!vs || !vs.length || /^https?:/i.test(foto.src)) return null;
+  const necesario = anchoEnPantalla * Math.min(PIXELES, maxDensidad);
+  const w = vs.find(x => x >= necesario) || vs[vs.length - 1];
+  return "images/v/" + normalizarRuta(foto.src).split("/").pop().replace(/\.[^.]+$/, "") + "-" + w + ".webp";
+}
+// Para la galería (ancho de una columna; con 2× alcanza y pesa mucho menos)
+function miniDe(foto) {
+  const col = window.innerWidth / (window.innerWidth <= 560 ? 1 : window.innerWidth <= 900 ? 2 : 3);
+  return variante(foto, col, 2) || rutaMiniatura(foto.src);
+}
+// Para el visor (el ancho máximo que puede ocupar la foto)
+function grandeDe(foto) {
+  return variante(foto, Math.min(window.innerWidth, 1000)) || normalizarRuta(foto.src);
+}
+// Para ampliar con zoom: la más grande
+const maximaDe = foto => variante(foto, 99999) || normalizarRuta(foto.src);
+
+/* Nombres científicos SIEMPRE en cursiva: en las descripciones se pone en
+   cursiva la especie de la publicación y cualquier "(Género especie)" entre
+   paréntesis. Los que ya vienen en cursiva de Instagram (𝘎𝘦𝘯𝘶𝘴) quedan igual. */
+const NO_SON_GENERO = new Set("en la el los las un una unos unas por para con sin de del que se es muy como al lo su sus mi me te si no ya hay pero mas más ver foto fotos esta este ese esa eso estos estas segun según cuando donde dónde tambien también aunque".split(" "));
+function textoConCursivas(el, texto, especie) {
+  el.replaceChildren();
+  if (!texto) return;
+  const partes = [];
+  const esp = (especie || "").trim();
+  const escapar = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patrones = [String.raw`\(([A-Z][a-zë]{2,}(?: [a-zë]{3,}){1,2})\)`];
+  if (/^[A-Z][a-zë]+ [a-zë]+/.test(esp)) patrones.unshift(escapar(esp));
+  const re = new RegExp(patrones.join("|"), "g");
+  let ultimo = 0, m;
+  while ((m = re.exec(texto))) {
+    const nombre = m[1] || m[0];
+    const palabras = nombre.split(" ");
+    if (m[1] && (NO_SON_GENERO.has(palabras[0].toLowerCase()) || palabras.slice(1).some(w => NO_SON_GENERO.has(w)))) continue;
+    const inicio = m.index + (m[1] ? 1 : 0);
+    partes.push(document.createTextNode(texto.slice(ultimo, inicio)));
+    const em = document.createElement("em");
+    em.textContent = nombre;
+    partes.push(em);
+    ultimo = inicio + nombre.length;
+  }
+  partes.push(document.createTextNode(texto.slice(ultimo)));
+  el.append(...partes);
+}
+
 // Identificador de cada foto para su link propio: images/benteveo.jpg → "benteveo"
 function idFoto(foto) {
   if (foto.id) return String(foto.id);   // fijo: el link no cambia aunque se cambie la portada
@@ -72,8 +124,13 @@ fetch("sitio.json" + sinCache)
   .then(r => (r.ok ? r.json() : null))
   .then(sitio => {
     const sobre = sitio && sitio.sobre;
-    if (!sobre) return;
-    if (sobre.foto) document.getElementById("sobre-foto").src = normalizarRuta(sobre.foto);
+    const img = document.getElementById("sobre-foto");
+    if (!sobre) { img.src = "images/Perfil.jpeg"; return; }
+    if (sobre.foto) {
+      const ancho = Math.min(window.innerWidth, 480);                  // en pantalla nunca es más ancha
+      img.src = variante({ src: sobre.foto, v: sobre.v }, ancho, 2) || normalizarRuta(sobre.foto);
+      img.onerror = () => { img.onerror = null; img.src = normalizarRuta(sobre.foto); };
+    } else img.src = "images/Perfil.jpeg";
     if (sobre.texto) {
       const cont = document.getElementById("sobre-parrafos");
       cont.replaceChildren(...sobre.texto.split(/\n\s*\n/).map(t => t.trim()).filter(Boolean).map(t => {
@@ -83,7 +140,7 @@ fetch("sitio.json" + sinCache)
       }));
     }
   })
-  .catch(() => {});
+  .catch(() => { const img = document.getElementById("sobre-foto"); if (!img.src) img.src = "images/Perfil.jpeg"; });
 
 /* ---------- 1. Filtros ---------- */
 function construirFiltros() {
@@ -102,8 +159,10 @@ function construirFiltros() {
     const numero = document.createElement("span");
     numero.className = "filtro__n";
     numero.textContent = cantidad;
-    btn.append(nombre, numero);
-    btn.setAttribute("aria-label", `${cat} (${cantidad} ${cantidad === 1 ? "foto" : "fotos"})`);
+    const oculto = document.createElement("span");      // lo lee el lector de voz: "Aves 48 fotos"
+    oculto.className = "solo-lector";
+    oculto.textContent = cantidad === 1 ? " foto" : " fotos";
+    btn.append(nombre, numero, oculto);
     btn.setAttribute("aria-pressed", i === 0);
     btn.addEventListener("click", () => {
       document.querySelectorAll(".filtro").forEach(b => {
@@ -152,10 +211,9 @@ function crearTarjeta(foto, indice) {
   card.dataset.id = idFoto(foto);
   if (foto.color) card.style.backgroundColor = foto.color;   // color de la foto mientras carga
   const cantidad = fotosDe(foto).length;
-  card.setAttribute("aria-label", `Ver foto: ${foto.titulo || "sin título"}${cantidad > 1 ? ` (${cantidad} fotos)` : ""}`);
 
   const img = document.createElement("img");
-  img.src = rutaMiniatura(foto.src);
+  img.src = miniDe(foto);
   img.alt = "";                           // el nombre ya lo dice la tarjeta
   img.loading = indice < 6 ? "eager" : "lazy";
   img.decoding = "async";
@@ -167,7 +225,8 @@ function crearTarjeta(foto, indice) {
   // Si falta la miniatura se usa la foto grande; si tampoco está
   // (ruta mal escrita, archivo borrado) se oculta la tarjeta.
   img.addEventListener("error", () => {
-    const grande = normalizarRuta(foto.src);
+    const mini = rutaMiniatura(foto.src), grande = normalizarRuta(foto.src);
+    if (/\.webp$/.test(img.src)) { img.src = mini; return; }     // sin versión WebP: la miniatura JPG
     if (!img.src.endsWith(grande)) { img.src = grande; return; }
     console.warn("No se encontró la imagen:", grande);
     card.hidden = true;
@@ -182,6 +241,12 @@ function crearTarjeta(foto, indice) {
   especie.className = "card__especie";
   especie.textContent = foto.especie || "";
   info.append(titulo, especie);
+  if (cantidad > 1) {                                   // lo lee el lector de voz
+    const oculto = document.createElement("span");
+    oculto.className = "solo-lector";
+    oculto.textContent = ` (${cantidad} fotos)`;
+    info.append(oculto);
+  }
 
   card.append(img, info);
   if (cantidad > 1) {   // como en Instagram: un iconito avisa que hay más fotos
@@ -292,6 +357,11 @@ let usandoTeclado = false;
 let ultimoPuntero = "mouse";
 document.addEventListener("keydown", e => { if (e.key === "Tab" || e.key === "Enter" || e.key === " ") usandoTeclado = true; });
 document.addEventListener("pointerdown", e => { usandoTeclado = false; ultimoPuntero = e.pointerType; });
+
+lbImg.addEventListener("error", () => {
+  const foto = fotoActual();
+  if (foto && /\.webp$/.test(lbImg.src)) lbImg.src = normalizarRuta(foto.src);
+});
 
 /* ---- Tamaño y posición de una foto dentro del visor ----
    Se calcula con el ancho/alto de fotos.json, así se sabe dónde va a quedar
@@ -514,7 +584,24 @@ window.addEventListener("popstate", () => {
   const id = idDesdeDireccion();
   if (!id && visorAbierto()) { entradaPropia = false; ocultarLightbox(); }
   else if (id && !lightbox.classList.contains("abierto")) abrirDesdeLink();
+  else if (id && visorAbierto()) irADireccion(id);     // se cambió el link con el visor abierto
 });
+
+// Con el visor abierto, el link pide otra foto (pegaron otro link, o atrás/adelante)
+function irADireccion(id) {
+  const i = fotosVisibles.findIndex(f => idFoto(f) === id);
+  const n = Number((location.hash.match(/[#&]n=(\d+)/) || [])[1]) || 1;
+  if (i < 0) { cerrarLightbox(); return; }
+  const sub = Math.max(0, Math.min(n - 1, fotosDe(fotosVisibles[i]).length - 1));
+  if (i === indiceActual && sub === subActual) return;
+  detenerCinta();
+  lbImg.style.visibility = "";
+  indiceActual = i;
+  subActual = sub;
+  lbContenido.classList.add("entrando");
+  mostrarFoto();
+  requestAnimationFrame(() => lbContenido.classList.remove("entrando"));
+}
 
 function idDesdeDireccion() {
   const m = location.hash.match(/^#foto=([^&]+)/);
@@ -537,18 +624,20 @@ function mostrarFoto({ sinCinta = false } = {}) {
   cerrarHoja(false);
   // Primero la miniatura (ya está en caché, aparece al instante)
   // y en cuanto baja la foto grande, se reemplaza.
-  const grande = normalizarRuta(foto.src);
-  const completa = new Image();
-  completa.onload = () => { if (fotoActual() === foto) lbImg.src = grande; };
-  completa.src = grande;
-  lbImg.src = completa.complete ? grande : rutaMiniatura(foto.src);
+  const grande = grandeDe(foto);
+  const completa = cacheImagenes.get(grande) || new Image();
+  if (!completa.complete || !completa.naturalWidth) {
+    completa.addEventListener("load", () => { if (fotoActual() === foto && !ampliada()) lbImg.src = grande; }, { once: true });
+    if (!completa.src) completa.src = grande;
+  }
+  lbImg.src = completa.complete && completa.naturalWidth ? grande : miniDe(foto);
   const total = fotosDe(ficha).length;
   lbImg.alt = [ficha.titulo, ficha.especie].filter(Boolean).join(" — ") + (total > 1 ? ` (foto ${subActual + 1} de ${total})` : "");
   lbTitulo.textContent  = ficha.titulo || "";
   lbEspecie.textContent = ficha.especie || "";
   lbLugar.textContent = [ficha.lugar, ficha.fecha].filter(Boolean).join(" · ");
   lbLugar.hidden = !lbLugar.textContent;
-  lbDetalle.textContent = ficha.descripcion || "";
+  textoConCursivas(lbDetalle, ficha.descripcion || "", ficha.especie);
   lbDetalle.hidden = !lbDetalle.textContent;
   dibujarPuntos();
   // "Leer más" solo si la descripción no entra en las líneas visibles
@@ -596,7 +685,7 @@ const cacheImagenes = new Map();   // ruta → Image ya pedida
 function precargarVecinas() {
   const mismas = vertical() ? fotosDe(fichaActual()) : [];   // en vertical: todas las del animal
   [1, -1].map(d => fotoEn(posicionVecina(d))).concat(mismas).forEach(vecina => {
-    const ruta = vecina && normalizarRuta(vecina.src);
+    const ruta = vecina && grandeDe(vecina);
     if (ruta && !precargadas.has(ruta)) {
       precargadas.add(ruta);
       const im = new Image();
@@ -619,7 +708,7 @@ function precargarVecinas() {
    deja "se va hacia atrás" y la nueva "viene hacia adelante".
    En reposo, encima de la foto del centro está lbImg (la que usa el zoom). */
 const mezclar = (a, b, p) => a + (b - a) * p;
-const vistaDe = foto => { const g = normalizarRuta(foto.src); const im = cacheImagenes.get(g); return im && im.complete && im.naturalWidth ? g : rutaMiniatura(foto.src); };
+const vistaDe = foto => { const g = grandeDe(foto); const im = cacheImagenes.get(g); return im && im.complete && im.naturalWidth ? g : miniDe(foto); };
 
 // Las imágenes de la cinta se reutilizan (no se vuelven a cargar ni a decodificar)
 const elementosCinta = new Map();     // src → <img>
@@ -713,8 +802,10 @@ function detenerCinta() {
 }
 
 // Lleva la cinta hasta la foto k, con una curva suave (y se puede interrumpir con el dedo)
+let cintaObjetivo = 0;     // foto hacia la que va la cinta (para sumar teclas seguidas)
 function irEnCinta(k, vel = 0) {
   detenerCinta();
+  cintaObjetivo = k;
   const desde = cintaD, hasta = -cinta.items[k].off, dist = Math.abs(hasta - desde);
   if (dist < 0.5) { fijarFoto(k); return; }
   const ms = Math.max(220, Math.min(520, 200 + dist * 0.55 - Math.abs(vel) * 60));
@@ -743,6 +834,8 @@ async function fijarFoto(k) {
   armarCinta();                                             // misma imagen, ahora con la nueva en el centro
   lbImg.style.visibility = "";
   animando = false;
+  // si mientras tanto tocaron ↓ ↑ otra vez, se sigue (no se pierde la tecla)
+  if (pasoPendiente) { const d = pasoPendiente; pasoPendiente = 0; irAFotoCinta(Math.max(0, Math.min(cinta.items.length - 1, subActual + d))); }
 }
 
 /* Gesto vertical: "cinta" (↑ siguiente / ↓ anterior) o "cerrar" (↓ en la primera) */
@@ -784,8 +877,10 @@ function irAFotoCinta(k) {
   irEnCinta(k);
   return true;
 }
+let pasoPendiente = 0;
 function pasoVertical(dir) {
-  const actual = cintaAnim && cinta ? masCercana(cintaD) : subActual;
+  if (animando && vertical() && cinta) { pasoPendiente += dir; return true; }   // queda en espera un instante
+  const actual = cintaAnim && cinta ? cintaObjetivo : subActual;   // cada tecla suma un paso más
   return irAFotoCinta(actual + dir);
 }
 
@@ -826,7 +921,7 @@ function abrirHoja() {
   document.getElementById("lb-hoja-titulo").textContent = foto.titulo || "";
   document.getElementById("lb-hoja-especie").textContent = foto.especie || "";
   document.getElementById("lb-hoja-lugar").textContent = lbLugar.textContent;
-  document.getElementById("lb-hoja-texto").textContent = foto.descripcion || "";
+  textoConCursivas(document.getElementById("lb-hoja-texto"), foto.descripcion || "", foto.especie);
   lbHoja.hidden = false;
   lbHoja.querySelector(".hoja__caja").scrollTop = 0;
   focoHoja = document.activeElement;
@@ -947,7 +1042,17 @@ const ZOOM_MAX = 4, ZOOM_TOQUE = 2.5;
 let zoom = { s: 1, x: 0, y: 0 };
 const ampliada = () => zoom.s > 1.01;
 
+// Al ampliar, se pide la versión más grande (para ver el detalle)
+function mejorarParaZoom() {
+  const foto = fotoActual(), max = foto && maximaDe(foto);
+  if (!max || lbImg.src.endsWith(max)) return;
+  const im = new Image();
+  im.onload = () => { if (fotoActual() === foto) im.decode().catch(() => {}).then(() => { lbImg.src = max; }); };
+  im.src = max;
+}
+
 function aplicarZoom(animado) {
+  if (zoom.s > 1.01) mejorarParaZoom();
   lbImg.style.transition = animado ? `transform 0.28s ${CURVA}` : "none";
   lbImg.style.transform = zoom.s !== 1 || zoom.x || zoom.y ? `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})` : "";
   lightbox.classList.toggle("ampliado", ampliada());
@@ -1058,8 +1163,7 @@ const recorrido = () => window.innerWidth + SEPARACION;
 function prepararVecina(dir, pos = posicionVecina(dir)) {
   const foto = fotoEn(pos);
   const r = rectEnVisor(foto, fotosVisibles[pos.indice]);
-  const grande = normalizarRuta(foto.src);
-  lbVecina.src = precargadas.has(grande) ? grande : rutaMiniatura(foto.src);
+  lbVecina.src = vistaDe(foto);
   Object.assign(lbVecina.style, {
     width: r.width + "px", height: r.height + "px",
     left: r.left + "px", top: r.top + "px",

@@ -4,6 +4,9 @@ WildMilu · arma la versión publicada del sitio (lo corre GitHub Actions en cad
 
 Copia el sitio a _site/ y le agrega:
   - images/thumbs/…      → las miniaturas que falten (por si una foto se subió sin panel)
+  - images/v/…           → versiones WebP livianas de cada foto (400, 800, 1200 y 2000 px):
+    el sitio elige la que corresponde a cada pantalla. No se guardan en el repo:
+    se arman acá (y se reutilizan de una caché entre publicaciones).
   - foto/<id>/index.html → una página por foto con su vista previa para WhatsApp,
     Instagram, etc. (og:image). Las personas son redirigidas al visor de esa foto.
   - sitemap.xml          → para que Google encuentre el sitio y sus fotos.
@@ -15,6 +18,7 @@ Sitio de prueba (rama "dev"):
   → franja "SITIO DE PRUEBA", sin Google ni estadísticas, y el panel guarda en "dev".
 """
 import argparse
+import hashlib
 import html
 import json
 import os
@@ -107,9 +111,62 @@ for foto in todas:
         foto["color"] = "#%02x%02x%02x" % (r, g, b)
     completadas += 1
 if completadas:
-    with open(os.path.join(SALIDA, "fotos.json"), "w", encoding="utf-8") as f:
-        json.dump({"fotos": fotos}, f, ensure_ascii=False, indent=2)
     print(f"Datos completados en {completadas} fotos")
+
+# ---------- 1d. Versiones WebP livianas (galería, visor y foto de perfil) ----------
+# El sitio pide la más chica que alcance para la pantalla (ver "variante" en js/main.js).
+# Cada foto anota en fotos.json qué anchos tiene ("v"); si falta alguno, el sitio usa el JPG.
+TAMANOS = [400, 800, 1200, 2000]
+CACHE = os.environ.get("WILDMILU_CACHE") or os.path.join(os.path.dirname(raiz), ".cache-variantes")
+
+
+def variantes(src):
+    """Crea images/v/<nombre>-<ancho>.webp y devuelve la lista de anchos creados."""
+    if Image is None or not os.path.exists(src):
+        return []
+    with open(src, "rb") as f:
+        huella = hashlib.sha1(f.read()).hexdigest()[:16]
+    base = os.path.splitext(os.path.basename(src))[0]
+    os.makedirs(os.path.join(SALIDA, "images", "v"), exist_ok=True)
+    os.makedirs(CACHE, exist_ok=True)
+    im, hechos = None, []
+    for w in TAMANOS:
+        en_cache = os.path.join(CACHE, f"{huella}-{w}.webp")
+        if not os.path.exists(en_cache):
+            if im is None:
+                im = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
+            # nunca se agranda: si la original es más chica, esa versión queda a su tamaño
+            chica = im if w >= im.width else im.resize((w, round(im.height * w / im.width)), Image.LANCZOS)
+            chica.save(en_cache, "WEBP", quality=74 if w <= 800 else 80, method=5)
+        shutil.copy2(en_cache, os.path.join(SALIDA, "images", "v", f"{base}-{w}.webp"))
+        hechos.append(w)
+    return hechos
+
+
+try:
+    hechas = 0
+    for foto in todas:
+        foto["v"] = variantes(ruta(foto["src"]))
+        hechas += bool(foto["v"])
+    print(f"Versiones WebP: {hechas} fotos")
+except Exception as error:   # si algo falla, el sitio sigue funcionando con los JPG
+    print("Aviso: no se pudieron armar las versiones WebP:", error)
+    for foto in todas:
+        foto.pop("v", None)
+with open(os.path.join(SALIDA, "fotos.json"), "w", encoding="utf-8") as f:
+    json.dump({"fotos": fotos}, f, ensure_ascii=False, indent=2)
+
+# foto de "Sobre mí"
+try:
+    with open("sitio.json", encoding="utf-8") as f:
+        sitio = json.load(f)
+    foto_sobre = (sitio.get("sobre") or {}).get("foto")
+    if foto_sobre:
+        sitio["sobre"]["v"] = variantes(ruta(foto_sobre))
+        with open(os.path.join(SALIDA, "sitio.json"), "w", encoding="utf-8") as f:
+            json.dump(sitio, f, ensure_ascii=False, indent=2)
+except (OSError, ValueError) as error:
+    print("Aviso: sitio.json:", error)
 
 # ---------- 2. Una página por foto (vista previa al compartir) ----------
 PLANTILLA = """<!DOCTYPE html>
