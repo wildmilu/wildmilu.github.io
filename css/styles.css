@@ -448,13 +448,25 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--terracota); out
 }
 
 /* ---------- Visor con el celular acostado: foto a la izquierda, texto a la derecha ---------- */
+/* ---------- Visor en pantallas anchas de compu/notebook: foto grande a la izquierda, texto a la derecha ---------- */
+@media (min-width: 900px) and (min-aspect-ratio: 3/2) and (hover: hover) {
+  .lightbox__contenido {
+    max-width: 1600px; grid-template-columns: minmax(0, 1fr) minmax(280px, 25rem);
+    align-items: center; column-gap: 3rem; text-align: left;
+  }
+  .lightbox__img { margin-left: auto; margin-right: auto; max-height: none; }   /* el tamaño lo calcula main.js */
+  .lightbox__meta h3 { font-size: 2rem; }
+  .lightbox__meta .detalle { margin-left: 0; max-width: none; -webkit-line-clamp: 9; line-clamp: 9; }
+  .lightbox__botones, .lightbox__puntos { justify-content: flex-start; }
+}
+
 @media (orientation: landscape) and (max-height: 540px) {
   .lightbox { padding: 0.75rem 3.5rem 0.75rem 1rem; }
   .lightbox__contenido {
     max-width: none; grid-template-columns: minmax(0, 1fr) minmax(220px, 36%);
     align-items: center; column-gap: 1.5rem; text-align: left;
   }
-  .lightbox__img { margin-left: auto; margin-right: auto; }
+  .lightbox__img { margin-left: auto; margin-right: auto; max-height: none; }   /* el tamaño lo calcula main.js */
   .lightbox__meta h3 { font-size: 1.35rem; }
   .lightbox__meta .detalle { margin-left: 0; -webkit-line-clamp: 3; line-clamp: 3; }
   .lightbox__botones, .lightbox__puntos { justify-content: flex-start; }

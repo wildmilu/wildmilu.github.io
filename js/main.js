@@ -367,7 +367,8 @@ lbImg.addEventListener("error", () => {
    Se calcula con el ancho/alto de fotos.json, así se sabe dónde va a quedar
    antes de que cargue (lo usan las animaciones). */
 // Celular acostado (poca altura): foto a la izquierda y texto a la derecha
-const MQ_APAISADO = window.matchMedia("(orientation: landscape) and (max-height: 540px)");
+// …y también en pantallas anchas de compu/notebook (la foto aprovecha toda la altura)
+const MQ_APAISADO = window.matchMedia("(orientation: landscape) and (max-height: 540px), (min-width: 900px) and (min-aspect-ratio: 3/2) and (hover: hover)");
 const apaisado = () => MQ_APAISADO.matches;
 // Ancho de la columna de la foto (en apaisado, lo que deja el texto a la derecha)
 function anchoColumnaFoto() {
@@ -459,6 +460,14 @@ function alCambiarTamano() {
   esperaReacomodo = setTimeout(reacomodar, 350);
 }
 window.addEventListener("resize", alCambiarTamano);
+// Si el bloque de texto cambia de alto (tipografía que llega tarde, pista que se va…), se reacomoda
+let altoMetaAnterior = 0;
+if ("ResizeObserver" in window) new ResizeObserver(() => {
+  const alto = lbMeta.offsetHeight;
+  if (alto === altoMetaAnterior) return;
+  altoMetaAnterior = alto;
+  if (visorAbierto() && !animando && !cintaAnim && !vert && !ladoVecina && !ampliada()) alCambiarTamano();
+}).observe(lbMeta);
 window.addEventListener("orientationchange", alCambiarTamano);
 MQ_APAISADO.addEventListener("change", alCambiarTamano);
 
@@ -640,6 +649,7 @@ function mostrarFoto({ sinCinta = false } = {}) {
   textoConCursivas(lbDetalle, ficha.descripcion || "", ficha.especie);
   lbDetalle.hidden = !lbDetalle.textContent;
   dibujarPuntos();
+  actualizarPista();
   // "Leer más" solo si la descripción no entra en las líneas visibles
   lbMas.hidden = lbDetalle.hidden || lbDetalle.scrollHeight <= lbDetalle.clientHeight + 1;
   lbContador.textContent = `${indiceActual + 1} / ${fotosVisibles.length}`;
@@ -768,13 +778,19 @@ function armarCinta() {
   }
   cinta = { items, min: -off[off.length - 1], max: -off[0] };
   dibujarCinta(0);
-  // Pista para descubrirlo (en el celu, hasta que lo use una vez)
+}
+
+// Pista para descubrir la cinta (hasta que se usa una vez). Va ANTES de medir:
+// si aparece después, el texto crece, la foto se re-centra y la cinta queda corrida.
+function actualizarPista() {
+  const n = fotosDe(fichaActual()).length;
   let usada = false;
   try { usada = localStorage.getItem("wildmilu-pila-usada") === "1"; } catch {}
-  const tactil = window.matchMedia("(hover: none)").matches;
-  lbPista.hidden = usada;
-  lbPista.textContent = tactil ? `↑ Deslizá hacia arriba para ver las ${fotos.length} fotos`
-                               : `Ruedita del mouse o ↓ para ver las ${fotos.length} fotos`;
+  lbPista.hidden = usada || !vertical() || n < 2;
+  if (lbPista.hidden) return;
+  lbPista.textContent = window.matchMedia("(hover: none)").matches
+    ? `↑ Deslizá hacia arriba para ver las ${n} fotos`
+    : `Ruedita del mouse o ↓ para ver las ${n} fotos`;
 }
 function pilaUsada() {
   try { localStorage.setItem("wildmilu-pila-usada", "1"); } catch {}
