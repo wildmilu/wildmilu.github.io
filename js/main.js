@@ -239,18 +239,12 @@ const lbPuntos    = document.getElementById("lb-puntos");
 const lbLugar     = document.getElementById("lb-lugar");
 const lbMas       = document.getElementById("lb-mas");
 
-/* Cómo se recorren las fotos del mismo animal:
-   - "vertical": apiladas (asoma la de atrás); ↑ la siguiente, ↓ la anterior,
-     ↓ en la primera cierra; ↔ cambia de animal.
-   - "horizontal": como un carrusel de Instagram (↔ recorre todo).
-   Para comparar: ?carrusel=vertical o ?carrusel=horizontal (queda guardado). */
-const MODO_CARRUSEL = (() => {
-  const pedido = new URLSearchParams(location.search).get("carrusel");
-  try { if (pedido) localStorage.setItem("wildmilu-carrusel", pedido); } catch {}
-  let guardado = pedido;
-  try { guardado = guardado || localStorage.getItem("wildmilu-carrusel"); } catch {}
-  return guardado === "horizontal" ? "horizontal" : "vertical";
-})();
+/* Cómo se recorren las fotos del mismo animal: en una cinta vertical
+   (↑ la siguiente, ↓ la anterior y, en la primera, cierra; ↔ cambia de animal).
+   El código también tiene un modo "horizontal" (carrusel tipo Instagram) por si
+   algún día se quiere volver: basta con cambiar esta constante. */
+const MODO_CARRUSEL = "vertical";
+try { localStorage.removeItem("wildmilu-carrusel"); } catch {}   // limpia la preferencia del sitio de prueba
 const vertical = () => MODO_CARRUSEL === "vertical";
 
 // Cinta vertical con las fotos del mismo animal: se ve la actual y asoman la
@@ -733,8 +727,8 @@ function soltarVertical(velY) {
   let k = masCercana(proyectado);
   // un deslizón corto pero decidido pasa a la vecina…
   if (k === aca && Math.abs(velY) > 0.35) k = aca + (velY < 0 ? 1 : -1);
-  // …y nunca salta más de una foto de golpe (como en Instagram)
-  k = Math.max(aca - 1, Math.min(aca + 1, k));
+  // …y nunca salta más de una foto de golpe (como en Instagram), salvo que el dedo la haya llevado más lejos
+  k = Math.max(Math.min(subActual - 1, aca), Math.min(Math.max(subActual + 1, aca), k));
   irEnCinta(Math.max(0, Math.min(cinta.items.length - 1, k)), velY);
 }
 
