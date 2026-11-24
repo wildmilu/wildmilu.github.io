@@ -1,6 +1,35 @@
 {
   "fotos": [
     {
+      "src": "images/shelduck2-1-de-1.jpg",
+      "ancho": 2000,
+      "alto": 1540,
+      "color": "#aaa2a5",
+      "marca": "arriba-clara",
+      "titulo": "Paradise Shelduck",
+      "especie": "Tadorna variegata",
+      "categoria": "Aves",
+      "lugar": "Christchurch, Nueva Zelanda",
+      "fecha": "Octubre 2026",
+      "descripcion": "Este patito endémico de Nueva Zelanda se llama Paradise Shelduck (𝘛𝘢𝘥𝘰𝘳𝘯𝘢 𝘷𝘢𝘳𝘪𝘦𝘨𝘢𝘵𝘢) ó pūtangitangi. \nSe considera que su coloración es un caso de \"dimorfismo sexual invertido\", porque la hembra (foto 2) tiene colores más brillantes, mientras que el macho (foto 1) es más oscuro \nEl macho mide unos 70 cm, lo que lo ubica entre un pato muy grande o un ganso pequeño.\nSon principalmente herbívoros, con algunos invertebrados de vez en cuando.\nEs el segundo pato más abundante en Nueva Zelanda; y ocupa praderas, arrollos de montaña, y zonas de pastoreo entre otras. Esta familia particularmente estaba muy contenta en el Jardín Botánico de Christchurch.\n❤️Forman parejas de por vida, y entre los dos defienden muy territorialmente a sus pichones (muy romántico todo).",
+      "extras": [
+        {
+          "src": "images/shelduck1-1-de-1.jpg",
+          "ancho": 2000,
+          "alto": 1512,
+          "color": "#bcb278",
+          "marca": "arriba-clara"
+        },
+        {
+          "src": "images/shelduck3-1-de-1.jpg",
+          "ancho": 2000,
+          "alto": 1519,
+          "color": "#c1c272",
+          "marca": "arriba-clara"
+        }
+      ]
+    },
+    {
       "src": "images/masked1-1-de-1.jpg",
       "titulo": "Masked lapwing",
       "especie": "Vanellus miles novaehollandiae",
