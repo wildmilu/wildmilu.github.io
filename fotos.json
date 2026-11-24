@@ -1,6 +1,28 @@
 {
   "fotos": [
     {
+      "src": "images/benteveo2-1-de-1.jpg",
+      "ancho": 2000,
+      "alto": 1301,
+      "color": "#ccb654",
+      "marca": "arriba-oscura",
+      "titulo": "Benteveo",
+      "especie": "",
+      "categoria": "Aves",
+      "lugar": "",
+      "fecha": "",
+      "descripcion": "",
+      "extras": [
+        {
+          "src": "images/benteveo3-1-de-1.jpg",
+          "ancho": 2000,
+          "alto": 1484,
+          "color": "#312d2b",
+          "marca": "arriba-oscura"
+        }
+      ]
+    },
+    {
       "src": "images/shelduck2-1-de-1.jpg",
       "ancho": 2000,
       "alto": 1540,
