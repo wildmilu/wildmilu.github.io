@@ -566,7 +566,7 @@ function abrirFormulario(i = -1) {
 
   $("dialogo-titulo").textContent = i >= 0 ? "Editar publicación" : "Agregar foto";
   $("archivo").value = $("extras-archivo").value = "";
-  $("archivo-info").textContent = "";
+  $("archivo-info").textContent = i < 0 ? "Podés elegir varias fotos del mismo animal: la primera es la portada." : "";
   $("form-error").hidden = true;
 
   $("f-titulo").value = foto.titulo || "";
@@ -576,8 +576,14 @@ function abrirFormulario(i = -1) {
   $("f-fecha").value = foto.fecha || "";
   $("f-descripcion").value = foto.descripcion || "";
 
-  // "Unir con otra publicación": solo al editar
-  $("unir").hidden = i < 0 || fotos.length < 2;
+  // Al editar: "Unir con otra publicación". Al agregar: "Sumar a una publicación existente"
+  const agregando = i < 0;
+  $("unir").hidden = agregando ? fotos.length < 1 : fotos.length < 2;
+  $("unir-titulo").textContent = agregando ? "Sumar a una publicación existente" : "Unir con otra publicación";
+  $("unir-ayuda").textContent = agregando
+    ? "Si estas fotos son de un animal que ya publicaste: se suman a esa publicación (que conserva su título y texto) en vez de crear una nueva."
+    : "Si subiste fotos del mismo posteo por separado: estas fotos pasan a la publicación que elijas (que conserva su texto) y esta se elimina.";
+  $("btn-unir").textContent = agregando ? "Sumar" : "Unir";
   $("unir").open = false;
   $("unir-destino").innerHTML = "";
   fotos.forEach((f, k) => {
@@ -726,10 +732,11 @@ async function actualizarMarca(evento) {
 
 /* Elegir (o cambiar) la foto que está seleccionada en la tira */
 async function alElegirArchivo() {
-  const archivo = $("archivo").files[0];
+  const elegidos = [...$("archivo").files];
+  const archivo = elegidos[0];
   $("archivo").value = "";
   if (!archivo) return;
-  $("archivo-info").textContent = "Preparando la foto…";
+  $("archivo-info").textContent = elegidos.length > 1 ? `Preparando 1 de ${elegidos.length}…` : "Preparando la foto…";
   $("btn-guardar").disabled = true;
   try {
     const listo = await procesarImagen(archivo, MARCA_AUTO);
@@ -741,11 +748,30 @@ async function alElegirArchivo() {
     const mb = (archivo.size / 1048576).toFixed(1);
     $("archivo-info").textContent = `Lista ✓ ${listo.ancho}×${listo.alto}px · ${mb} MB → ${Math.round(listo.peso / 1024)} KB`;
     if (!$("f-titulo").value) $("f-titulo").value = archivo.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    // si eligió varias: la primera queda acá y las demás se suman al final (mismo animal)
+    if (elegidos.length > 1) await sumarArchivos(elegidos.slice(1), 2, elegidos.length);
   } catch {
     $("archivo-info").textContent = "No se pudo leer esta foto. Probá con JPG o PNG.";
   } finally {
     $("btn-guardar").disabled = false;
   }
+}
+
+/* Suma fotos al final de la tira (con la marca automática) */
+async function sumarArchivos(archivos, desde = 1, total = archivos.length) {
+  const fallaron = [];
+  for (const [n, archivo] of archivos.entries()) {
+    $("archivo-info").textContent = `Preparando ${desde + n} de ${total}…`;
+    try {
+      const listo = await procesarImagen(archivo, MARCA_AUTO);
+      formFotos.push({ ruta: null, datos: null, origen: archivo, marca: MARCA_AUTO, aplicada: listo.aplicada, listo, url: listo.url });
+    } catch { fallaron.push(archivo.name); }
+  }
+  dibujarTira();
+  elegirEnTira(sel);
+  $("archivo-info").textContent = fallaron.length
+    ? `No se pudieron leer: ${fallaron.join(", ")} (probá con JPG o PNG).`
+    : `Listas ✓ ${formFotos.length} fotos. La primera es la portada.`;
 }
 
 /* "+ Más fotos de este animal": se suman al final, con la marca automática */
@@ -793,7 +819,7 @@ async function ponerMarcaExistente() {
 }
 
 /* Pasa las fotos del formulario a datos de fotos.json (y deja listas las imágenes a subir) */
-function guardarFotos(titulo) {
+function guardarFotos(titulo, numerarSeguido = false) {
   const publicadas = rutasPublicadas();
   const reservadas = [];
   let marcadas = 0;
@@ -803,7 +829,7 @@ function guardarFotos(titulo) {
     // misma ruta si se marca una foto ya publicada (su link no cambia) o si todavía no se publicó
     const ruta = item.ruta && (item.reemplaza || !publicada)
       ? item.ruta
-      : rutaNueva(k === 0 ? titulo : `${titulo}-${k + 1}`, reservadas);
+      : rutaNueva(k === 0 || numerarSeguido ? titulo : `${titulo}-${k + 1}`, reservadas);   // seguido: -5, -6…
     reservadas.push(ruta);
     if (publicada && item.reemplaza && !item.listo.aplicada) {   // publicada + "Sin marca": queda como estaba
       imagenesNuevas.delete(ruta);
@@ -864,7 +890,27 @@ function guardarFormulario(e) {
 }
 
 /* Unir esta publicación con otra: sus fotos pasan al final de la otra */
+/* Agregando: las fotos elegidas se suman a una publicación que ya existe */
+function sumarAExistente() {
+  const otra = fotos[Number($("unir-destino").value)];
+  if (!otra) return;
+  if (!formFotos.length) {
+    $("form-error").textContent = "Primero elegí las fotos.";
+    $("form-error").hidden = false;
+    return;
+  }
+  const n = formFotos.length;
+  if (!confirm(`¿Sumar ${n === 1 ? "esta foto" : `estas ${n} fotos`} a "${otra.titulo || "esa publicación"}"? Quedan al final, después de sus fotos actuales (el título y el texto que escribiste acá no se usan).`)) return;
+  const { lista } = guardarFotos(otra.titulo || "foto", true);
+  otra.extras = [...(otra.extras || []), ...lista.map(datosFoto)];
+  cambios.push(`Sumar ${n === 1 ? "1 foto" : `${n} fotos`} a "${otra.titulo || "foto"}"`);
+  $("dialogo").close();
+  render();
+  aviso(`Listo: ${n === 1 ? "la foto quedó" : `las ${n} fotos quedaron`} en "${otra.titulo || "la publicación"}". Tocá Publicar para que se vean.`);
+}
+
 function unirConOtra() {
+  if (editando < 0) { sumarAExistente(); return; }
   const destino = Number($("unir-destino").value);
   const origen = fotos[editando];
   if (!origen || !fotos[destino]) return;
