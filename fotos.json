@@ -1,28 +1,6 @@
 {
   "fotos": [
     {
-      "src": "images/benteveo2-1-de-1.jpg",
-      "ancho": 2000,
-      "alto": 1301,
-      "color": "#ccb654",
-      "marca": "arriba-oscura",
-      "titulo": "Benteveo",
-      "especie": "",
-      "categoria": "Aves",
-      "lugar": "",
-      "fecha": "",
-      "descripcion": "",
-      "extras": [
-        {
-          "src": "images/benteveo3-1-de-1.jpg",
-          "ancho": 2000,
-          "alto": 1484,
-          "color": "#312d2b",
-          "marca": "arriba-oscura"
-        }
-      ]
-    },
-    {
       "src": "images/shelduck2-1-de-1.jpg",
       "ancho": 2000,
       "alto": 1540,
@@ -192,7 +170,30 @@
       "ancho": 2000,
       "alto": 1486,
       "color": "#6c6461",
-      "marca": "arriba-clara"
+      "marca": "arriba-clara",
+      "extras": [
+        {
+          "src": "images/monjita.jpg",
+          "ancho": 2000,
+          "alto": 1540,
+          "color": "#b2a289",
+          "marca": "arriba-clara"
+        },
+        {
+          "src": "images/monjita-2.jpg",
+          "ancho": 2000,
+          "alto": 1482,
+          "color": "#68613f",
+          "marca": "abajo-clara"
+        },
+        {
+          "src": "images/monjita-3.jpg",
+          "ancho": 2000,
+          "alto": 1416,
+          "color": "#928171",
+          "marca": "arriba-clara"
+        }
+      ]
     },
     {
       "src": "images/benteveo.jpg",
@@ -205,7 +206,23 @@
       "ancho": 2000,
       "alto": 1360,
       "color": "#ddca74",
-      "marca": "arriba-oscura"
+      "marca": "arriba-oscura",
+      "extras": [
+        {
+          "src": "images/benteveo2-1-de-1.jpg",
+          "ancho": 2000,
+          "alto": 1301,
+          "color": "#ccb654",
+          "marca": "arriba-oscura"
+        },
+        {
+          "src": "images/benteveo3-1-de-1.jpg",
+          "ancho": 2000,
+          "alto": 1484,
+          "color": "#312d2b",
+          "marca": "arriba-oscura"
+        }
+      ]
     },
     {
       "src": "images/moorhen3-1-de-1.jpg",
