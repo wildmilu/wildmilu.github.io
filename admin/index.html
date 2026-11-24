@@ -81,7 +81,7 @@
         <ul class="tira" id="tira" hidden></ul>
         <div class="campo-imagen__botones">
           <label class="btn btn--suave" for="archivo" id="archivo-label">Elegir foto</label>
-          <input id="archivo" type="file" accept="image/*" hidden>
+          <input id="archivo" type="file" accept="image/*" multiple hidden>
           <label class="btn btn--suave" for="extras-archivo" id="extras-label" hidden>+ Más fotos de este animal</label>
           <input id="extras-archivo" type="file" accept="image/*" multiple hidden>
         </div>
@@ -130,8 +130,8 @@
       <textarea id="f-descripcion" rows="3"></textarea>
 
       <details class="unir" id="unir" hidden>
-        <summary>Unir con otra publicación</summary>
-        <p class="ayuda ayuda--chica">Si subiste fotos del mismo posteo por separado: estas fotos pasan a la publicación que elijas (que conserva su texto) y esta se elimina.</p>
+        <summary id="unir-titulo">Unir con otra publicación</summary>
+        <p class="ayuda ayuda--chica" id="unir-ayuda">Si subiste fotos del mismo posteo por separado: estas fotos pasan a la publicación que elijas (que conserva su texto) y esta se elimina.</p>
         <div class="unir__fila">
           <select id="unir-destino"></select>
           <button class="btn btn--suave" type="button" id="btn-unir">Unir</button>
@@ -174,6 +174,6 @@
 
   <!-- Para reordenar arrastrando (funciona con el dedo en el celular) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.7/Sortable.min.js"></script>
-  <script src="admin.js?v=10"></script>
+  <script src="admin.js?v=11"></script>
 </body>
 </html>

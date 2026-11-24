@@ -71,7 +71,11 @@ Cada **publicación** puede tener varias fotos: en la galería se ve una sola (l
 **portada**, con un iconito que dice cuántas hay) y en el visor se pasan
 deslizando, con puntitos abajo. El texto es el mismo para todas.
 
-- **Al crear una:** elegí la primera foto y después tocá **+ Más fotos de este animal**.
+- **Al crear una:** en **Elegir foto** podés seleccionar varias de una vez (la primera
+  es la portada). También podés sumar más después con **+ Más fotos de este animal**.
+- **Si el animal ya está publicado:** elegí las fotos y abajo de todo tocá
+  **Sumar a una publicación existente** → elegí cuál → **Sumar**. Se agregan al final
+  de esa publicación (que conserva su título y texto).
 - **Con "Agregar varias":** si elegís varias fotos te pregunta si son del mismo
   animal. Si decís que sí, quedan juntas (la primera es la portada).
 - **Ordenar:** en **Editar**, usá ◀ ▶ debajo de cada miniatura. La primera es la portada.
